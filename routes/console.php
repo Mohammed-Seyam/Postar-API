@@ -12,3 +12,19 @@ Artisan::command('inspire', function () {
 Schedule::command('postar:publish-scheduled')->everyMinute();
 Schedule::command('videos:cleanup-expired')->daily();
 Schedule::command(\App\Console\Commands\RefreshTikTokTokens::class)->hourly();
+
+// Security: Cleanup expired presigned URL uploads
+Schedule::command('uploads:cleanup-expired')->dailyAt('02:00');
+
+// Security: Daily database backup at 2 AM (compressed)
+Schedule::command('backup:database --compress')
+    ->dailyAt('02:00')
+    ->withoutOverlapping()
+    ->onFailure(function () {
+        \Illuminate\Support\Facades\Log::alert('Database backup failed!');
+    });
+
+// Security: Remove backups older than 7 days at 3 AM
+Schedule::command('backups:cleanup --keep=7')
+    ->dailyAt('03:00')
+    ->withoutOverlapping();

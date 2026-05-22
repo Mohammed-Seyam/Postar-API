@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\SchedulePostJob;
+use App\Http\Requests\StorePostRequest;
+use App\Http\Requests\UpdatePostRequest;
 
 class PostController extends Controller
 {
@@ -35,15 +37,9 @@ class PostController extends Controller
         return response()->json($posts);
     }
 
-    public function store(Request $request)
+    public function store(StorePostRequest $request)
     {
-        $validated = $request->validate([
-            'video_id'   => 'required|string|exists:posts,id',
-            'platforms'  => 'required|array|min:1',
-            'platforms.*'=> 'required|string|in:tiktok,youtube',
-            'publish_at' => 'nullable|date|after_or_equal:now',
-            'caption'    => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         $user = $request->user();
 
@@ -122,16 +118,14 @@ class PostController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdatePostRequest $request, $id)
     {
-        $validated = $request->validate([
-            'platform'   => 'sometimes|string|in:tiktok,youtube',
-            'publish_at' => 'sometimes|date|after:now',
-            'caption'    => 'nullable|string',
-        ]);
+        $validated = $request->validated();
+
+        $post = Post::findOrFail($id);
+        $this->authorize('update', $post);
 
         $user = $request->user();
-        $post = $user->posts()->findOrFail($id);
 
         DB::beginTransaction();
         try {
@@ -172,13 +166,15 @@ class PostController extends Controller
 
     public function show(Request $request, $id)
     {
-        $post = $request->user()->posts()->with('targets.socialAccount', 'targets.analytics')->findOrFail($id);
+        $post = Post::with('targets.socialAccount', 'targets.analytics')->findOrFail($id);
+        $this->authorize('view', $post);
         return response()->json(['data' => $post]);
     }
 
     public function destroy(Request $request, $id)
     {
-        $post = $request->user()->posts()->findOrFail($id);
+        $post = Post::findOrFail($id);
+        $this->authorize('delete', $post);
 
         DB::beginTransaction();
         try {

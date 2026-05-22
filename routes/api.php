@@ -15,7 +15,7 @@ Route::post('/webhooks/paddle', [\App\Http\Controllers\WebhookController::class,
 
 
 
-Route::prefix('auth')->group(function () {
+Route::prefix('auth')->middleware('throttle:5,1')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
 
@@ -39,7 +39,7 @@ Route::prefix('auth')->group(function () {
 
 
 
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:100,1'])->group(function () {
     
     // Plan Context
     Route::get('/user/plan-context', [\App\Http\Controllers\Api\UserController::class, 'planContext']);
@@ -50,7 +50,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Video Management
     Route::apiResource('videos', \App\Http\Controllers\VideoController::class)
-        ->middleware(['plan:uploads']);
+        ->middleware(['plan:uploads', 'throttle:10,1']);
 
     // Subscriptions webhook
 
@@ -72,15 +72,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/analytics/{any}', [\App\Http\Controllers\Api\AnalyticsController::class, 'show'])
         ->middleware(['plan:analytics'])
         ->where('any', '.*');
+
+    // Presigned URL Upload (10/minute rate limit)
+    Route::post('/videos/presigned-url', [\App\Http\Controllers\VideoUploadController::class, 'generatePresignedUrl'])
+        ->middleware('throttle:10,1');
+    Route::post('/videos/confirm-upload', [\App\Http\Controllers\VideoUploadController::class, 'confirmUpload'])
+        ->middleware('throttle:10,1');
 });
 
 
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware('auth:sanctum');
+})->middleware(['auth:sanctum', 'throttle:100,1']);
 
-Route::middleware('auth:sanctum')->prefix('user')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:100,1'])->prefix('user')->group(function () {
     Route::get('settings', [\App\Http\Controllers\Api\UserSettingsController::class, 'getSettings']);
     Route::put('profile', [\App\Http\Controllers\Api\UserSettingsController::class, 'updateProfile']);
     Route::put('email', [\App\Http\Controllers\Api\UserSettingsController::class, 'updateEmail']);
