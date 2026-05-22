@@ -1,0 +1,171 @@
+<?php
+
+namespace App\Http\Controllers\Api\Auth;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+
+class SocialAuthController extends Controller
+{
+    public function redirect(Request $request, $platform)
+    {
+        if ($platform === 'tiktok') {
+            /** @var \App\Services\Platforms\TikTokService $tiktok */
+            $tiktok = app(\App\Services\Platforms\TikTokService::class);
+            
+            // Securely pass the user ID in the state parameter
+            $stateData = [
+                'user_id' => $request->user()->id,
+                'ts'      => time(),
+                'nonce'   => \Illuminate\Support\Str::random(16),
+            ];
+            $signedState = \Illuminate\Support\Facades\Crypt::encrypt($stateData);
+            
+            $authData = $tiktok->getAuthorizationUrl($signedState);
+
+            return response()->json([
+                'url' => $authData['url']
+            ]);
+        }
+
+        if ($platform === 'youtube') {
+            $youtube = app(\App\Services\YouTubeService::class);
+            return response()->json([
+                'url' => $youtube->getAuthUrl($request->user())
+            ]);
+        }
+
+        // Mock authorization URL generation.
+        // E.g., for YouTube: Socialite::driver('youtube')->stateless()->redirect()->getTargetUrl();
+        $authUrl = url("/oauth/{$platform}/mock-redirect"); 
+        
+        return response()->json([
+            'url' => $authUrl
+        ]);
+    }
+
+    public function callback(Request $request, $platform)
+    {
+        $frontendUrl = config('app.frontend_url', 'http://localhost:4200');
+
+        if ($platform === 'youtube') {
+            try {
+                $youtube = app(\App\Services\YouTubeService::class);
+                $youtube->handleCallback($request);
+                return redirect("{$frontendUrl}/app/accounts?connected=youtube");
+            } catch (\Exception $e) {
+                $errorType = 'youtube_failed';
+                if ($e->getMessage() === 'plan_limit_reached') {
+                    $errorType = 'plan_limit_reached';
+                } elseif ($e->getMessage() === 'youtube_missing_scopes') {
+                    $errorType = 'youtube_missing_scopes';
+                } elseif ($e->getMessage() === 'youtube_already_linked') {
+                    $errorType = 'youtube_already_linked';
+                }
+                \Illuminate\Support\Facades\Log::error('YouTube callback exception', [
+                    'message' => $e->getMessage(),
+                ]);
+                return redirect("{$frontendUrl}/app/accounts?error={$errorType}");
+            }
+        }
+
+        if ($platform === 'tiktok') {
+            if ($request->filled('error')) {
+                \Illuminate\Support\Facades\Log::warning('TikTok auth denied', [
+                    'error'       => $request->input('error'),
+                    'description' => $request->input('error_description'),
+                ]);
+                return redirect("{$frontendUrl}/app/accounts?error=tiktok_denied");
+            }
+
+            try {
+                // Decrypt state to get the user ID
+                $stateData = \Illuminate\Support\Facades\Crypt::decrypt($request->input('state'));
+                $user = \App\Models\User::findOrFail($stateData['user_id']);
+                
+                // Security check: timestamp (optional, e.g. within 1 hour)
+                if ($stateData['ts'] < time() - 3600) {
+                    throw new \Exception('Auth state expired');
+                }
+
+                // We ensure we don't exceed plan limits when creating a new account.
+                $planLimit = $user->plan->max_social_accounts ?? 0;
+                $currentCount = $user->socialAccounts()->count();
+                
+                if ($currentCount >= $planLimit && $planLimit !== -1) {
+                    return redirect("{$frontendUrl}/app/accounts?error=plan_limit_reached");
+                }
+
+                /** @var \App\Services\Platforms\TikTokService $tiktok */
+                $tiktok = app(\App\Services\Platforms\TikTokService::class);
+                
+                $code      = $request->input('code');
+                $tokenData = $tiktok->exchangeCodeForToken($code);
+
+                // Task 3: Validate that required scopes were actually granted by the user
+                $grantedScopes  = explode(',', $tokenData['scope'] ?? '');
+                $requiredScopes = ['user.info.basic', 'video.upload'];
+
+                foreach ($requiredScopes as $scope) {
+                    if (!in_array($scope, $grantedScopes)) {
+                        \Illuminate\Support\Facades\Log::warning('TikTok missing scope', [
+                            'user_id'        => $user->id,
+                            'missing_scope'  => $scope,
+                            'granted_scopes' => $grantedScopes,
+                        ]);
+                        return redirect("{$frontendUrl}/app/accounts?error=tiktok_missing_scopes");
+                    }
+                }
+
+                $userInfo = $tiktok->getUserInfo($tokenData['access_token']);
+
+                // Task 2: Check if this TikTok account is already linked to a different Postar user
+                $existingAccount = \App\Models\SocialAccount::where('platform', 'tiktok')
+                    ->where('platform_user_id', $userInfo['open_id'])
+                    ->where('user_id', '!=', $user->id)
+                    ->first();
+
+                if ($existingAccount) {
+                    return redirect("{$frontendUrl}/app/accounts?error=tiktok_already_linked");
+                }
+
+                $tiktok->saveAccount($user, $tokenData, $userInfo);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('TikTok callback exception', [
+                    'message' => $e->getMessage(),
+                ]);
+                return redirect("{$frontendUrl}/app/accounts?error=tiktok_failed");
+            }
+
+            return redirect("{$frontendUrl}/app/accounts?connected=tiktok");
+        }
+
+        $user = $request->user();
+        if (!$user) {
+            return redirect("{$frontendUrl}/dashboard?error=unauthenticated");
+        }
+
+        $planLimit = $user->plan->max_social_accounts ?? 0;
+        $currentCount = $user->socialAccounts()->count();
+        
+        if ($currentCount >= $planLimit && $planLimit !== -1) {
+            return redirect("{$frontendUrl}/settings/accounts?error=plan_limit_reached");
+        }
+
+        // Mock saving the account securely.
+        $user->socialAccounts()->updateOrCreate(
+            ['platform' => $platform, 'platform_user_id' => 'mock_id_' . time()],
+            [
+                'username' => 'Mock ' . ucfirst($platform) . ' User',
+                'access_token' => 'mock_access_token_encrypted',
+                'refresh_token' => 'mock_refresh_token_encrypted',
+                'token_expires_at' => now()->addHours(2),
+                'refresh_expires_at' => now()->addDays(30),
+                'scopes' => 'read,write',
+                'is_active' => true,
+            ]
+        );
+
+        return redirect("{$frontendUrl}/app/accounts?connected={$platform}");
+    }
+}
