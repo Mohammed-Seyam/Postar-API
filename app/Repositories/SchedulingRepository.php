@@ -31,6 +31,7 @@ class SchedulingRepository
     public function listUpcomingForUser(string $userId, int $perPage = 10): LengthAwarePaginator
     {
         $perPage = min($perPage, 50);
+
         return ScheduledPost::with('video')
             ->whereHas('video', function ($query) use ($userId) {
                 $query->where('user_id', $userId);

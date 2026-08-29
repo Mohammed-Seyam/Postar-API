@@ -8,15 +8,13 @@ use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function __construct(protected ReportingRepository $reportingRepository)
-    {
-    }
+    public function __construct(protected ReportingRepository $reportingRepository) {}
 
     public function stats(Request $request): JsonResponse
     {
         $stats = $this->reportingRepository->getUserStats($request->user()->id);
-        
-        if (!$stats) {
+
+        if (! $stats) {
             $stats = (object) [
                 'total_views' => 0,
                 'total_likes' => 0,
@@ -31,10 +29,13 @@ class DashboardController extends Controller
         }
 
         $platformStats = $this->reportingRepository->getPlatformStats($request->user()->id);
-        
+
         // Merge stats (convert object to array if needed, or cast)
         $statsArray = (array) $stats;
         $mergedStats = array_merge($statsArray, $platformStats);
+
+        // Add top performing videos
+        $mergedStats['top_videos'] = $this->reportingRepository->getTopPerformingVideos($request->user()->id);
 
         return response()->json($mergedStats);
     }
@@ -42,14 +43,15 @@ class DashboardController extends Controller
     public function calendar(Request $request): JsonResponse
     {
         $calendar = $this->reportingRepository->getCalendar($request->user()->id);
+
         return response()->json($calendar);
     }
 
     public function storage(Request $request): JsonResponse
     {
         $storage = $this->reportingRepository->getStorageUsage($request->user()->id);
-        
-        if (!$storage) {
+
+        if (! $storage) {
             $storage = [
                 'used_bytes' => 0,
                 'total_bytes' => 1073741824, // 1GB default?

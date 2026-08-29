@@ -17,14 +17,14 @@ return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => match(config('app.env')) {
+    'allowed_methods' => match (config('app.env')) {
         'local' => ['*'],
         'production' => ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         default => ['GET', 'POST', 'OPTIONS'],
     },
 
     // ===== Dynamic origins based on environment =====
-    'allowed_origins' => match(config('app.env')) {
+    'allowed_origins' => match (config('app.env')) {
         'local' => [
             'http://localhost:4200',
             'http://127.0.0.1:4200',
@@ -35,13 +35,13 @@ return [
         default => [],
     },
 
-    'allowed_origins_patterns' => match(config('app.env')) {
+    'allowed_origins_patterns' => match (config('app.env')) {
         'local' => ['/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/'],
         'production' => [],
         default => [],
     },
 
-    'allowed_headers' => match(config('app.env')) {
+    'allowed_headers' => match (config('app.env')) {
         'local' => ['*'],
         'production' => [
             'Accept',
@@ -53,7 +53,7 @@ return [
         default => ['*'],
     },
 
-    'exposed_headers' => match(config('app.env')) {
+    'exposed_headers' => match (config('app.env')) {
         'local' => [],
         'production' => [
             'X-RateLimit-Limit',
@@ -63,7 +63,7 @@ return [
         default => [],
     },
 
-    'max_age' => match(config('app.env')) {
+    'max_age' => match (config('app.env')) {
         'local' => 0,
         'production' => 86400,
         default => 0,

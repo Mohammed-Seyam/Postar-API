@@ -20,23 +20,27 @@ class SetSecurityHeaders
         // Prevent MIME type sniffing
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
-        // Enable XSS protection
-        $response->headers->set('X-XSS-Protection', '1; mode=block');
+        // X-XSS-Protection is deprecated and can introduce vulnerabilities in
+        // older browsers; explicitly disable it and rely on CSP instead.
+        $response->headers->set('X-XSS-Protection', '0');
 
-        // Strict Transport Security (HTTPS only)
-        $response->headers->set(
-            'Strict-Transport-Security',
-            'max-age=31536000; includeSubDomains; preload'
-        );
+        // Strict Transport Security (HTTPS only) - Production only
+        if (config('app.env') === 'production') {
+            $response->headers->set(
+                'Strict-Transport-Security',
+                'max-age=31536000; includeSubDomains; preload'
+            );
+        }
 
-        // Content Security Policy
+        // Content Security Policy. This API returns JSON only, so scripts should
+        // never execute from it — lock script/object down and forbid framing.
         $response->headers->set(
             'Content-Security-Policy',
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+            "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'self' 'unsafe-inline'"
         );
 
         // Referrer Policy
-        $response->headers->set('Referrer-Policy', 'no-referrer-when-downgrade');
+        $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
         // Permissions Policy
         $response->headers->set(

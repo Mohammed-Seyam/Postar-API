@@ -2,7 +2,6 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
-
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -10,8 +9,15 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('postar:publish-scheduled')->everyMinute();
-Schedule::command('videos:cleanup-expired')->daily();
+Schedule::command('postar:check-processing-posts')->everyFiveMinutes();
+Schedule::command('postar:poll-analytics')->everySixHours();
 Schedule::command(\App\Console\Commands\RefreshTikTokTokens::class)->hourly();
+
+// Security: Purge expired password reset tokens
+Schedule::command('auth:purge-expired-reset-tokens')->daily();
+
+// Sync canceled subscriptions daily
+Schedule::command('subscriptions:sync-canceled')->daily();
 
 // Security: Cleanup expired presigned URL uploads
 Schedule::command('uploads:cleanup-expired')->dailyAt('02:00');

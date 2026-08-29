@@ -2,12 +2,12 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
+use App\Listeners\PaddleEventListener;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
+use Laravel\Paddle\Events\SubscriptionCanceled;
 use Laravel\Paddle\Events\SubscriptionCreated;
 use Laravel\Paddle\Events\SubscriptionUpdated;
-use Laravel\Paddle\Events\SubscriptionCanceled;
-use App\Listeners\PaddleEventListener;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,5 +27,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(SubscriptionCreated::class, [PaddleEventListener::class, 'handle']);
         Event::listen(SubscriptionUpdated::class, [PaddleEventListener::class, 'handle']);
         Event::listen(SubscriptionCanceled::class, [PaddleEventListener::class, 'handle']);
+
+        \Laravel\Paddle\Cashier::useSubscriptionModel(\App\Models\Subscription::class);
     }
 }

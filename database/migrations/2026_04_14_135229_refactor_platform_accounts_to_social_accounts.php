@@ -15,7 +15,7 @@ return new class extends Migration
 
         Schema::table('social_accounts', function (Blueprint $table) {
             $table->renameColumn('external_account_id', 'platform_user_id');
-            
+
             $table->string('username')->nullable();
             $table->string('account_name')->nullable();
             $table->string('avatar_url', 512)->nullable();

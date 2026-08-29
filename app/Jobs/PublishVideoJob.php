@@ -3,37 +3,36 @@
 namespace App\Jobs;
 
 use App\Interfaces\PlatformInterface;
-use App\Models\PlatformAccount;
 use App\Models\ScheduledPost;
+use App\Models\SocialAccount;
 use App\Services\Platforms\TikTokService;
+use App\Services\YouTubeService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
- * @deprecated This job is from the old architecture (ScheduledPost / PlatformAccount models).
+ * @deprecated This job is from the old architecture (ScheduledPost / SocialAccount models).
  *             The active pipeline uses SchedulePostJob with PostTarget instead.
- *             DO NOT dispatch this job — it contains a mock token refresh that would
- *             overwrite real access tokens with garbage values.
+ *             DO NOT dispatch this job — although the token refresh logic is now real,
+ *             the job itself is deprecated.
  */
 class PublishVideoJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 3;
+
     public $backoff = 30;
 
     /**
      * Create a new job instance.
      */
-    public function __construct(public ScheduledPost $scheduledPost)
-    {
-    }
+    public function __construct(public ScheduledPost $scheduledPost) {}
 
     /**
      * Execute the job.
@@ -47,52 +46,55 @@ class PublishVideoJob implements ShouldQueue
         $this->fail(new \RuntimeException(
             'PublishVideoJob is deprecated. Use SchedulePostJob with PostTarget instead.'
         ));
+
         return;
 
         // Atomic Lock to prevent double publishing
-        $lock = Cache::lock('publishing_post_' . $this->scheduledPost->id, 120);
+        $lock = Cache::lock('publishing_post_'.$this->scheduledPost->id, 120);
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             Log::warning("Post {$this->scheduledPost->id} is already being processed.");
+
             return;
         }
 
         try {
             // Verify model existence and state
-            if (!$this->scheduledPost->exists) {
+            if (! $this->scheduledPost->exists) {
                 return;
             }
-            
+
             // Reload to check current status
             $this->scheduledPost->refresh();
             if ($this->scheduledPost->status === 'published') {
-                 return;
+                return;
             }
 
             $this->scheduledPost->update(['status' => 'publishing']);
 
             // Retrieve User's Platform Account
             $video = $this->scheduledPost->video;
-            if (!$video) {
-                 throw new \Exception("Video not found for scheduled post.");
+            if (! $video) {
+                throw new \Exception('Video not found for scheduled post.');
             }
-            
-            $platformAccount = PlatformAccount::where('user_id', $video->user_id)
+
+            $platformAccount = SocialAccount::where('user_id', $video->user_id)
                 ->where('platform', $this->scheduledPost->platform)
                 ->first();
-                
-            if (!$platformAccount) {
+
+            if (! $platformAccount) {
                 throw new \Exception("Platform account not found for user {$video->user_id} and platform {$this->scheduledPost->platform}");
             }
 
             // Check Token Expiry
             if ($platformAccount->token_expires_at && $platformAccount->token_expires_at->isPast()) {
-                 Log::info("Token expired for account {$platformAccount->id}. Refreshing...");
-                 $this->refreshAccessToken($platformAccount);
+                Log::info("Token expired for account {$platformAccount->id}. Refreshing...");
+                $this->refreshAccessToken($platformAccount);
+                $platformAccount->refresh();
             }
 
             $platformService = $this->getPlatformService($this->scheduledPost->platform);
-            
+
             $externalId = $platformService->publish($this->scheduledPost, $platformAccount->access_token);
 
             $this->scheduledPost->update([
@@ -103,11 +105,11 @@ class PublishVideoJob implements ShouldQueue
             Log::info("Successfully published post: {$this->scheduledPost->id}");
 
         } catch (\Exception $e) {
-            Log::error("Failed to publish post {$this->scheduledPost->id}: " . $e->getMessage());
-            
+            Log::error("Failed to publish post {$this->scheduledPost->id}: ".$e->getMessage());
+
             // Only retry on specific errors, or handle permanently failed
             $this->scheduledPost->update(['status' => 'failed']);
-            
+
             throw $e;
         } finally {
             $lock->release();
@@ -117,23 +119,30 @@ class PublishVideoJob implements ShouldQueue
     private function getPlatformService(string $platform): PlatformInterface
     {
         return match ($platform) {
-            'tiktok' => new TikTokService(),
+            'tiktok' => new TikTokService,
             default => throw new \Exception("Platform {$platform} not supported"),
         };
     }
 
-    private function refreshAccessToken(PlatformAccount $account): void
+    private function refreshAccessToken(SocialAccount $account): void
     {
-        // Mock refresh logic
-        // In a real app, this would use the refresh_token to get a new access token from the platform API
-        
-        $newAccessToken = "mock_refreshed_token_" . uniqid();
-        
-        $account->update([
-            'access_token' => $newAccessToken,
-            'token_expires_at' => now()->addDays(30), // Extended validity
-        ]);
+        $service = match ($account->platform) {
+            'tiktok' => app(TikTokService::class),
+            'youtube' => app(YouTubeService::class),
+            default => null,
+        };
 
-        Log::info("Token refreshed for account {$account->id}");
+        if ($service === null) {
+            Log::warning("No service available for token refresh in PublishVideoJob for platform: {$account->platform}");
+            return;
+        }
+
+        try {
+            $service->refreshToken($account);
+            Log::info("Token successfully refreshed in PublishVideoJob for account {$account->id}");
+        } catch (\Exception $e) {
+            Log::error("Token refresh failed in PublishVideoJob for account {$account->id}: " . $e->getMessage());
+            throw $e;
+        }
     }
 }

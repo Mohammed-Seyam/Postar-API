@@ -15,6 +15,7 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         $plan = $this->plan;
+        $subscription = $this->subscription();
 
         return [
             'id' => $this->id,
@@ -28,6 +29,8 @@ class UserResource extends JsonResource
                 'name' => $plan->name,
                 'display_name' => $plan->display_name,
             ] : null,
+            'cancel_at_period_end' => $subscription ? (bool) $subscription->cancel_at_period_end : false,
+            'cancel_at' => $subscription && $subscription->cancel_at ? $subscription->cancel_at->toIso8601String() : null,
             'created_at' => $this->created_at,
         ];
     }

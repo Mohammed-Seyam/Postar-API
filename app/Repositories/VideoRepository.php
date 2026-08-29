@@ -4,7 +4,6 @@ namespace App\Repositories;
 
 use App\Models\Post;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 
 class VideoRepository
 {
@@ -30,7 +29,7 @@ class VideoRepository
 
     public function listForUser(string $userId, int $perPage = 10, ?string $platform = null): LengthAwarePaginator
     {
-        $query = Post::where('user_id', $userId);
+        $query = Post::with('media')->where('user_id', $userId);
 
         if ($platform) {
             $query->whereHas('targets.socialAccount', function ($q) use ($platform) {

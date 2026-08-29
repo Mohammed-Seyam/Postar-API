@@ -47,7 +47,9 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Tokens expire after this many minutes (default: 7 days). A leaked bearer
+    // token is no longer valid indefinitely. Override with SANCTUM_EXPIRATION.
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 60 * 24 * 7),
 
     /*
     |--------------------------------------------------------------------------

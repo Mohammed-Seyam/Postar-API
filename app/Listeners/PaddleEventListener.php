@@ -3,11 +3,11 @@
 namespace App\Listeners;
 
 use App\Models\Plan;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Laravel\Paddle\Events\SubscriptionCanceled;
 use Laravel\Paddle\Events\SubscriptionCreated;
 use Laravel\Paddle\Events\SubscriptionUpdated;
-use Laravel\Paddle\Events\SubscriptionCanceled;
 
 class PaddleEventListener
 {
@@ -18,9 +18,9 @@ class PaddleEventListener
         // Map Paddle Price IDs to internal Plan IDs
         $this->planMap = [
             config('paddle.prices.creator_monthly') => 2,
-            config('paddle.prices.creator_yearly')  => 2,
-            config('paddle.prices.pro_monthly')     => 3,
-            config('paddle.prices.pro_yearly')      => 3,
+            config('paddle.prices.creator_yearly') => 2,
+            config('paddle.prices.pro_monthly') => 3,
+            config('paddle.prices.pro_yearly') => 3,
         ];
     }
 
@@ -37,8 +37,8 @@ class PaddleEventListener
     {
         $user = $subscription->billable;
         $priceId = $subscription->items->first()->price_id ?? null;
-        
-        if (!$priceId || !$user) {
+
+        if (! $priceId || ! $user) {
             return;
         }
 
@@ -46,9 +46,9 @@ class PaddleEventListener
 
         // Only update if changed or if it was canceled
         if ($user->plan_id !== $planId || $subscription->status !== 'active') {
-            $user->update([
+            $user->forceFill([
                 'plan_id' => $subscription->status === 'active' ? $planId : 1,
-            ]);
+            ])->save();
             $this->clearPlanCache($user->id);
             Log::info("User {$user->id} plan updated to {$user->plan_id} via Paddle Event");
         }
@@ -58,7 +58,7 @@ class PaddleEventListener
     {
         $user = $subscription->billable;
         if ($user) {
-            $user->update(['plan_id' => 1]);
+            $user->forceFill(['plan_id' => 1])->save();
             $this->clearPlanCache($user->id);
             Log::info("User {$user->id} subscription canceled. Reverted to free plan.");
         }

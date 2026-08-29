@@ -16,6 +16,7 @@ return [
 
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
+        'token' => env('POSTMARK_TOKEN'),
     ],
 
     'resend' => [
@@ -28,6 +29,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'waitlist' => [
+        'referral_boost' => env('WAITLIST_REFERRAL_BOOST', 10),
+        'turnstile_site_key' => env('TURNSTILE_SITE_KEY'),
+        'turnstile_secret_key' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
@@ -36,15 +43,16 @@ return [
     ],
 
     'tiktok' => [
-        'client_key'    => env('TIKTOK_CLIENT_KEY'),
+        'client_key' => env('TIKTOK_CLIENT_KEY'),
         'client_secret' => env('TIKTOK_CLIENT_SECRET'),
-        'redirect_uri'  => env('TIKTOK_REDIRECT_URI', 'https://api.postar.blog/api/auth/tiktok/callback'),
+        'redirect_uri' => env('TIKTOK_REDIRECT_URI', 'https://api.postar.blog/api/auth/tiktok/callback'),
+        'scopes' => env('TIKTOK_SCOPES', 'user.info.basic,user.info.profile,video.publish,video.list'),
     ],
 
     'youtube' => [
-        'client_id'     => env('YOUTUBE_CLIENT_ID'),
+        'client_id' => env('YOUTUBE_CLIENT_ID'),
         'client_secret' => env('YOUTUBE_CLIENT_SECRET'),
-        'redirect_uri'  => env('YOUTUBE_REDIRECT_URI'),
+        'redirect_uri' => env('YOUTUBE_REDIRECT_URI'),
     ],
 
 ];

@@ -3,23 +3,28 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\SocialAccount;
 use Illuminate\Http\Request;
 
 class SocialAccountController extends Controller
 {
     public function index(Request $request)
     {
-        $accounts = $request->user()->socialAccounts()->get();
+        $accounts = $request->user()->socialAccounts()->withTrashed()->get();
+
         return response()->json(['data' => $accounts]);
     }
 
     public function destroy(Request $request, $id)
     {
-        $account = $request->user()->socialAccounts()->findOrFail($id);
-        
-        // E.g., make an API call to revoke token securely on platform endpoints
-        
+        $type = $request->query('type', 'soft');
+        $account = $request->user()->socialAccounts()->withTrashed()->findOrFail($id);
+
+        if ($type === 'hard') {
+            $account->forceDelete();
+
+            return response()->json(['message' => 'Account deleted permanently.']);
+        }
+
         $account->delete();
 
         return response()->json(['message' => 'Account disconnected successfully.']);

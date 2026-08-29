@@ -15,11 +15,15 @@ class VirusScanFile implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if (!$value || !file_exists($value->path())) {
+        if (! $value || ! file_exists($value->path())) {
             return;
         }
 
-        // Check if clamscan binary is available on the system
+        // Check if exec is available and clamscan binary is on the system
+        if (! function_exists('exec')) {
+            return; // Skip silently if exec is disabled
+        }
+
         $clamscanPath = $this->findClamscan();
 
         if ($clamscanPath === null) {
@@ -33,7 +37,7 @@ class VirusScanFile implements ValidationRule
 
         // clamscan exit codes: 0 = clean, 1 = virus found, 2 = error
         if ($exitCode === 1) {
-            $fail('The ' . $attribute . ' contains malware and cannot be uploaded.');
+            $fail('The '.$attribute.' contains malware and cannot be uploaded.');
         }
     }
 
@@ -42,6 +46,10 @@ class VirusScanFile implements ValidationRule
      */
     protected function findClamscan(): ?string
     {
+        if (! function_exists('exec')) {
+            return null;
+        }
+
         // Check common paths
         $paths = [
             '/usr/bin/clamscan',
@@ -58,8 +66,8 @@ class VirusScanFile implements ValidationRule
 
         // Windows fallback
         if (PHP_OS_FAMILY === 'Windows') {
-            exec("where clamscan 2>nul", $output, $exitCode);
-            if ($exitCode === 0 && !empty($output[0])) {
+            exec('where clamscan 2>nul', $output, $exitCode);
+            if ($exitCode === 0 && ! empty($output[0])) {
                 return trim($output[0]);
             }
         }

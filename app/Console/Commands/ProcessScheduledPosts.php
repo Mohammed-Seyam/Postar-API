@@ -32,13 +32,14 @@ class ProcessScheduledPosts extends Command
         $dueTargets = PostTarget::where('status', 'pending')
             ->whereHas('post', function ($query) {
                 $query->where('status', 'scheduled')
-                      ->whereNotNull('scheduled_at')
-                      ->where('scheduled_at', '<=', now());
+                    ->whereNotNull('scheduled_at')
+                    ->where('scheduled_at', '<=', now());
             })
             ->get();
 
         if ($dueTargets->isEmpty()) {
             $this->info('No pending posts due for publishing.');
+
             return;
         }
 

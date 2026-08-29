@@ -24,7 +24,7 @@ class AuditLog
      */
     public static function logFailedLogin($email, $ip)
     {
-        Log::warning("Failed Login Attempt", [
+        Log::warning('Failed Login Attempt', [
             'email' => $email,
             'ip_address' => $ip,
             'timestamp' => now(),
@@ -49,7 +49,7 @@ class AuditLog
      */
     public static function logDeletion($model, $id, $userId)
     {
-        Log::warning("Data Deletion", [
+        Log::warning('Data Deletion', [
             'model' => class_basename($model),
             'id' => $id,
             'deleted_by' => $userId,

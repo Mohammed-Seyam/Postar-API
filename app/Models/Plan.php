@@ -28,12 +28,12 @@ class Plan extends Model
     ];
 
     protected $casts = [
-        'price_monthly'         => 'decimal:2',
-        'price_yearly'          => 'decimal:2',
-        'allowed_platforms'     => 'array',
-        'custom_caption'        => 'boolean',
-        'auto_retry'            => 'boolean',
-        'max_posts_per_month'   => 'integer',
+        'price_monthly' => 'decimal:2',
+        'price_yearly' => 'decimal:2',
+        'allowed_platforms' => 'array',
+        'custom_caption' => 'boolean',
+        'auto_retry' => 'boolean',
+        'max_posts_per_month' => 'integer',
         'max_uploads_per_month' => 'integer',
     ];
 }

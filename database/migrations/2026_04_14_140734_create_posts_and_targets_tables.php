@@ -21,13 +21,13 @@ return new class extends Migration
             $table->text('caption')->nullable();
             $table->string('video_path');
             $table->string('video_url', 512);
-            
+
             $table->decimal('file_size_mb', 8, 2)->nullable();
             $table->integer('duration')->default(0);
 
             $table->dateTime('scheduled_at')->nullable();
             $table->enum('status', ['draft', 'scheduled', 'publishing', 'published', 'failed'])->default('draft');
-            
+
             $table->timestamps();
             $table->softDeletes();
         });
@@ -35,14 +35,14 @@ return new class extends Migration
         Schema::create('post_targets', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('post_id')->constrained('posts')->cascadeOnDelete();
-            
+
             $table->foreignId('social_account_id')->constrained('social_accounts')->cascadeOnDelete();
-            
+
             $table->enum('status', ['pending', 'uploading', 'processing', 'published', 'failed'])->default('pending');
             $table->string('platform_post_id')->nullable();
             $table->text('error_message')->nullable();
             $table->dateTime('published_at')->nullable();
-            
+
             $table->timestamps();
 
             $table->unique(['post_id', 'social_account_id']);

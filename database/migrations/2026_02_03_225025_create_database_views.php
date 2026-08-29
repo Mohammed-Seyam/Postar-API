@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         if (config('database.default') !== 'sqlite') {
-            \Illuminate\Support\Facades\DB::statement("DROP VIEW IF EXISTS user_dashboard_stats_view");
+            \Illuminate\Support\Facades\DB::statement('DROP VIEW IF EXISTS user_dashboard_stats_view');
             \Illuminate\Support\Facades\DB::statement("
             CREATE VIEW user_dashboard_stats_view AS
             SELECT 
@@ -25,8 +25,8 @@ return new class extends Migration
             FROM users u
         ");
 
-        \Illuminate\Support\Facades\DB::statement("DROP VIEW IF EXISTS scheduled_posts_calendar_view");
-        \Illuminate\Support\Facades\DB::statement("
+            \Illuminate\Support\Facades\DB::statement('DROP VIEW IF EXISTS scheduled_posts_calendar_view');
+            \Illuminate\Support\Facades\DB::statement('
             CREATE VIEW scheduled_posts_calendar_view AS
             SELECT 
                 sp.id as scheduled_post_id,
@@ -40,10 +40,10 @@ return new class extends Migration
             FROM scheduled_posts sp
             JOIN videos v ON sp.video_id = v.id
             WHERE sp.deleted_at IS NULL AND v.deleted_at IS NULL
-        ");
+        ');
 
-        \Illuminate\Support\Facades\DB::statement("DROP VIEW IF EXISTS user_storage_usage_view");
-        \Illuminate\Support\Facades\DB::statement("
+            \Illuminate\Support\Facades\DB::statement('DROP VIEW IF EXISTS user_storage_usage_view');
+            \Illuminate\Support\Facades\DB::statement('
             CREATE VIEW user_storage_usage_view AS
             SELECT 
                 user_id,
@@ -51,7 +51,7 @@ return new class extends Migration
                 0 as total_storage_mb -- Placeholder as file size not in schema, assuming extraction later or update
             FROM videos
             GROUP BY user_id
-        ");
+        ');
         }
     }
 
@@ -61,9 +61,9 @@ return new class extends Migration
     public function down(): void
     {
         if (config('database.default') !== 'sqlite') {
-            \Illuminate\Support\Facades\DB::statement("DROP VIEW IF EXISTS user_dashboard_stats_view");
-            \Illuminate\Support\Facades\DB::statement("DROP VIEW IF EXISTS scheduled_posts_calendar_view");
-            \Illuminate\Support\Facades\DB::statement("DROP VIEW IF EXISTS user_storage_usage_view");
+            \Illuminate\Support\Facades\DB::statement('DROP VIEW IF EXISTS user_dashboard_stats_view');
+            \Illuminate\Support\Facades\DB::statement('DROP VIEW IF EXISTS scheduled_posts_calendar_view');
+            \Illuminate\Support\Facades\DB::statement('DROP VIEW IF EXISTS user_storage_usage_view');
         }
     }
 };

@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\Log;
 
 class RefreshTikTokTokens extends Command
 {
-    protected $signature   = 'tiktok:refresh-tokens';
+    protected $signature = 'tiktok:refresh-tokens';
+
     protected $description = 'Refresh TikTok access tokens that expire within the next 2 hours';
 
     public function handle(TikTokService $tiktok): void
@@ -27,8 +28,8 @@ class RefreshTikTokTokens extends Command
                 $tiktok->refreshToken($account);
                 $this->line("  ✓ Refreshed account ID {$account->id} (user {$account->user_id})");
             } catch (\Throwable $e) {
-                Log::error("TikTok token refresh failed for account {$account->id}: " . $e->getMessage());
-                $this->error("  ✗ Failed account ID {$account->id}: " . $e->getMessage());
+                Log::error("TikTok token refresh failed for account {$account->id}: ".$e->getMessage());
+                $this->error("  ✗ Failed account ID {$account->id}: ".$e->getMessage());
             }
         }
 

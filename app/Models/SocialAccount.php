@@ -18,6 +18,7 @@ class SocialAccount extends Model
         'platform_user_id',
         'username',
         'account_name',
+        'email',
         'avatar_url',
         'access_token',
         'refresh_token',

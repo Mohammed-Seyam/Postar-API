@@ -1,0 +1,16 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+
+    paths:
+        - app/
+
+    # Level 5 is a good balance for Laravel projects to start with
+    level: 5
+
+    ignoreErrors:
+        # Ignore common laravel-specific dynamic method resolver false-positives if any
+
+    excludePaths:
+        # Add any paths to exclude from analysis if needed

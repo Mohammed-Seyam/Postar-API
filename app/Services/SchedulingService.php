@@ -12,9 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class SchedulingService
 {
-    public function __construct(protected SchedulingRepository $schedulingRepository)
-    {
-    }
+    public function __construct(protected SchedulingRepository $schedulingRepository) {}
 
     public function schedule(User $user, array $data): ScheduledPost
     {
@@ -23,7 +21,7 @@ class SchedulingService
                 ->where('user_id', $user->id)
                 ->lockForUpdate()
                 ->firstOrFail();
-                
+
             if ($video->status !== 'ready') {
                 throw ValidationException::withMessages([
                     'video_id' => ['Video is not ready to be scheduled (must be processed).'],
@@ -31,11 +29,11 @@ class SchedulingService
             }
 
             $data['status'] = 'pending';
-            
+
             $post = $this->schedulingRepository->create($data);
-            
+
             $video->update(['status' => 'scheduled']); // This might technically be redundant if we allow multiple posts per video, but let's keep logic
-            
+
             return $post;
         });
     }
@@ -53,11 +51,11 @@ class SchedulingService
             }
 
             if (empty($data)) {
-                 // ... same exception ...
-                 $receivedKeys = implode(', ', array_keys(request()->all()));
-                 throw ValidationException::withMessages([
-                     'status' => ["No valid fields provided for update. Received keys: [{$receivedKeys}]. Allowed: caption, hashtags, publish_at, platform."],
-                 ]);
+                // ... same exception ...
+                $receivedKeys = implode(', ', array_keys(request()->all()));
+                throw ValidationException::withMessages([
+                    'status' => ["No valid fields provided for update. Received keys: [{$receivedKeys}]. Allowed: caption, hashtags, publish_at, platform."],
+                ]);
             }
 
             \Illuminate\Support\Facades\Log::info('Updating post', ['id' => $post->id, 'data' => $data]);
@@ -72,17 +70,17 @@ class SchedulingService
     {
         DB::transaction(function () use ($post) {
             $post = ScheduledPost::lockForUpdate()->find($post->id);
-            
+
             if ($post->status !== 'pending') {
-                 throw ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'status' => ['Cannot cancel a post that is already publishing or published.'],
                 ]);
             }
-            
-            // Release video? 
+
+            // Release video?
             // Only if no other pending posts? For now simple logic:
             $post->video->update(['status' => 'ready']); // Revert to ready, not draft
-            
+
             $this->schedulingRepository->delete($post);
         });
     }

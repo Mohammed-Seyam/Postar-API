@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class CleanupExpiredUploads extends Command
 {
     protected $signature = 'uploads:cleanup-expired';
+
     protected $description = 'Clean up expired upload records';
 
     public function handle()

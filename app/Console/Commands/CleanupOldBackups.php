@@ -7,16 +7,18 @@ use Illuminate\Console\Command;
 class CleanupOldBackups extends Command
 {
     protected $signature = 'backups:cleanup {--keep=7}';
+
     protected $description = 'Remove backups older than specified days';
 
     public function handle()
     {
-        $keep       = (int) $this->option('keep');
+        $keep = (int) $this->option('keep');
         $backupPath = storage_path('backups');
         $cutoffTime = time() - ($keep * 24 * 60 * 60);
 
-        if (!is_dir($backupPath)) {
+        if (! is_dir($backupPath)) {
             $this->info('No backups directory found. Nothing to clean.');
+
             return 0;
         }
 
@@ -30,6 +32,7 @@ class CleanupOldBackups extends Command
         }
 
         $this->info("Deleted $deleted old backup file(s) (kept last $keep days).");
+
         return 0;
     }
 }

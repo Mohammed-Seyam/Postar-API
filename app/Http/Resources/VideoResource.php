@@ -14,14 +14,33 @@ class VideoResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Prefer the ordered media collection (carousel). Fall back to the legacy
+        // scalar columns for posts that predate post_media.
+        $media = $this->resource->relationLoaded('media')
+            ? $this->resource->media
+            : $this->resource->media()->get();
+
+        $primary = $media->first();
+
         return [
             'id' => $this->id,
             'title' => $this->title,
-            'file_path' => $this->video_url ?? \Illuminate\Support\Facades\Storage::disk('public')->url($this->video_path),
-            'thumbnail_path' => $this->thumbnail_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($this->thumbnail_path) : null,
+            'file_path' => $primary ? $primary->playableUrl() : $this->resource->playableVideoUrl(),
+            'thumbnail_path' => $primary ? $primary->playableThumbnailUrl() : $this->resource->playableThumbnailUrl(),
             'duration' => $this->duration,
             'status' => $this->status,
+            'video_deleted_at' => $this->video_deleted_at,
             'created_at' => $this->created_at,
+            'media' => $media->map(fn ($item) => [
+                'id' => $item->id,
+                'type' => $item->type,
+                'url' => $item->playableUrl(),
+                'thumbnail_path' => $item->playableThumbnailUrl(),
+                'position' => $item->position,
+                'width' => $item->width,
+                'height' => $item->height,
+                'duration' => $item->duration,
+            ])->values(),
         ];
     }
 }

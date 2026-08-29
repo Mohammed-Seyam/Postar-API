@@ -2,26 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
 use App\Http\Requests\StoreVideoRequest;
 use App\Http\Resources\VideoResource;
 use App\Models\Post;
 use App\Services\VideoService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class VideoController extends Controller
 {
-    public function __construct(protected VideoService $videoService)
-    {
-    }
+    public function __construct(protected VideoService $videoService) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
         $platform = $request->query('platform');
         $perPage = $request->query('per_page', 10);
         $videos = $this->videoService->list($request->user(), $platform, $perPage);
+
         return VideoResource::collection($videos);
     }
 
@@ -29,20 +27,20 @@ class VideoController extends Controller
     {
         $user = $request->user();
 
-
-
         $video = $this->videoService->upload(
-            $user, 
+            $user,
             $request->file('video'),
             $request->input('title'),
             $request->file('thumbnail')
         );
+
         return new VideoResource($video);
     }
 
     public function show(Post $video): VideoResource
     {
         $this->authorize('view', $video);
+
         return new VideoResource($video);
     }
 
@@ -54,6 +52,7 @@ class VideoController extends Controller
             $request->input('title'),
             $request->file('thumbnail')
         );
+
         return new VideoResource($video);
     }
 
@@ -61,6 +60,7 @@ class VideoController extends Controller
     {
         $this->authorize('delete', $video);
         $this->videoService->delete($video);
+
         return response()->json(null, 204);
     }
 }

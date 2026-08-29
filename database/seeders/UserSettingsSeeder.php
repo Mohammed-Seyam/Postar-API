@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class UserSettingsSeeder extends Seeder
@@ -24,7 +23,7 @@ class UserSettingsSeeder extends Seeder
                     'time_format' => '12h',
                     'email_notifications' => true,
                     'default_visibility' => 'unlisted',
-                ]
+                ],
             ]
         );
     }

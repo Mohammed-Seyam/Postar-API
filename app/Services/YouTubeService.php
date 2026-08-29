@@ -2,51 +2,58 @@
 
 namespace App\Services;
 
-use App\Models\PostTarget;
 use App\Models\SocialAccount;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class YouTubeService
 {
     private string $clientId;
+
     private string $clientSecret;
+
     private string $redirectUri;
-    private string $scopes = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+
+    private string $scopes = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.email';
 
     public function __construct()
     {
-        $this->clientId     = config('services.youtube.client_id', '');
+        $this->clientId = config('services.youtube.client_id', '');
         $this->clientSecret = config('services.youtube.client_secret', '');
-        $this->redirectUri  = config('services.youtube.redirect_uri', '');
+        $this->redirectUri = config('services.youtube.redirect_uri', '');
     }
 
     /**
      * Builds YouTube OAuth URL with encrypted state containing user_id
      */
-    public function getAuthUrl(\App\Models\User $user): string
+    public function getAuthUrl(\App\Models\User $user, ?string $loginHint = null): string
     {
         $stateData = [
-            'user_id'   => $user->id,
+            'user_id' => $user->id,
             'timestamp' => now()->timestamp,
-            'nonce'     => Str::random(16),
+            'nonce' => Str::random(16),
         ];
 
         $state = Crypt::encrypt(json_encode($stateData));
 
-        $params = http_build_query([
-            'client_id'     => $this->clientId,
-            'redirect_uri'  => $this->redirectUri,
+        $paramsArray = [
+            'client_id' => $this->clientId,
+            'redirect_uri' => $this->redirectUri,
             'response_type' => 'code',
-            'scope'         => $this->scopes,
-            'access_type'   => 'offline',
-            'prompt'        => 'consent',
-            'state'         => $state,
-        ]);
+            'scope' => $this->scopes,
+            'access_type' => 'offline',
+            'prompt' => 'select_account consent',
+            'state' => $state,
+        ];
 
-        return 'https://accounts.google.com/o/oauth2/v2/auth?' . $params;
+        if ($loginHint) {
+            $paramsArray['login_hint'] = $loginHint;
+        }
+
+        $params = http_build_query($paramsArray, '', '&', PHP_QUERY_RFC3986);
+
+        return 'https://accounts.google.com/o/oauth2/v2/auth?'.$params;
     }
 
     /**
@@ -55,13 +62,13 @@ class YouTubeService
     public function handleCallback(\Illuminate\Http\Request $request): SocialAccount
     {
         $stateStr = $request->input('state');
-        if (!$stateStr) {
+        if (! $stateStr) {
             throw new \Exception('Missing state parameter.');
         }
 
         $stateData = json_decode(Crypt::decrypt($stateStr), true);
 
-        if (!isset($stateData['timestamp']) || !isset($stateData['nonce']) || !isset($stateData['user_id'])) {
+        if (! isset($stateData['timestamp']) || ! isset($stateData['nonce']) || ! isset($stateData['user_id'])) {
             throw new \Exception('Invalid state parameter.');
         }
 
@@ -81,15 +88,15 @@ class YouTubeService
         $code = $request->input('code');
 
         $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
-            'client_id'     => $this->clientId,
+            'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
-            'code'          => $code,
-            'grant_type'    => 'authorization_code',
-            'redirect_uri'  => $this->redirectUri,
+            'code' => $code,
+            'grant_type' => 'authorization_code',
+            'redirect_uri' => $this->redirectUri,
         ]);
 
         if ($response->failed()) {
-            throw new \Exception('Failed to exchange code for token: ' . $response->body());
+            throw new \Exception('Failed to exchange code for token: '.$response->body());
         }
 
         $tokenData = $response->json();
@@ -99,12 +106,20 @@ class YouTubeService
         $requiredScopesList = explode(' ', $this->scopes);
 
         foreach ($requiredScopesList as $scope) {
-            if (!in_array($scope, $grantedScopes) && strpos($grantedScopesStr, $scope) === false) {
+            if (! in_array($scope, $grantedScopes) && strpos($grantedScopesStr, $scope) === false) {
                 throw new \Exception('youtube_missing_scopes');
             }
         }
 
         $accessToken = $tokenData['access_token'];
+
+        $userInfoResponse = Http::withToken($accessToken)
+            ->get('https://www.googleapis.com/oauth2/v2/userinfo');
+        
+        $email = null;
+        if ($userInfoResponse->successful()) {
+            $email = $userInfoResponse->json('email');
+        }
 
         $profileResponse = Http::withToken($accessToken)
             ->get('https://youtube.googleapis.com/youtube/v3/channels', [
@@ -113,11 +128,11 @@ class YouTubeService
             ]);
 
         if ($profileResponse->failed()) {
-            throw new \Exception('Failed to fetch channel profile: ' . $profileResponse->body());
+            throw new \Exception('Failed to fetch channel profile: '.$profileResponse->body());
         }
 
         $profileData = $profileResponse->json('items.0');
-        if (!$profileData) {
+        if (! $profileData) {
             throw new \Exception('No YouTube channel found for this account.');
         }
 
@@ -126,7 +141,8 @@ class YouTubeService
         $channelName = $snippet['title'] ?? 'YouTube Channel';
         $avatarUrl = $snippet['thumbnails']['default']['url'] ?? null;
 
-        $existingAccount = SocialAccount::where('platform', 'youtube')
+        $existingAccount = SocialAccount::withTrashed()
+            ->where('platform', 'youtube')
             ->where('platform_user_id', $channelId)
             ->where('user_id', '!=', $user->id)
             ->first();
@@ -136,32 +152,43 @@ class YouTubeService
         }
 
         // Handle possible missing refresh token if user already authorized before.
-        $refreshToken = isset($tokenData['refresh_token']) 
-            ? Crypt::encrypt($tokenData['refresh_token']) 
+        $refreshToken = isset($tokenData['refresh_token'])
+            ? Crypt::encrypt($tokenData['refresh_token'])
             : null;
 
         $updateData = [
-            'username'             => $snippet['customUrl'] ?? $channelName,
-            'account_name'         => $channelName,
-            'avatar_url'           => $avatarUrl,
-            'access_token'         => Crypt::encrypt($accessToken),
-            'token_expires_at'     => now()->addSeconds($tokenData['expires_in']),
-            'scopes'               => json_encode($grantedScopes),
-            'is_active'            => true,
+            'username' => $snippet['customUrl'] ?? $channelName,
+            'account_name' => $channelName,
+            'email' => $email,
+            'avatar_url' => $avatarUrl,
+            'access_token' => Crypt::encrypt($accessToken),
+            'token_expires_at' => now()->addSeconds($tokenData['expires_in']),
+            'scopes' => json_encode($grantedScopes),
+            'is_active' => true,
         ];
 
         if ($refreshToken) {
             $updateData['refresh_token'] = $refreshToken;
         }
 
-        return SocialAccount::updateOrCreate(
-            [
-                'user_id'          => $user->id,
-                'platform'         => 'youtube',
+        $account = SocialAccount::withTrashed()->where([
+            'user_id' => $user->id,
+            'platform' => 'youtube',
+            'platform_user_id' => $channelId,
+        ])->first();
+
+        if ($account) {
+            $account->restore();
+            $account->update($updateData);
+        } else {
+            $account = SocialAccount::create(array_merge([
+                'user_id' => $user->id,
+                'platform' => 'youtube',
                 'platform_user_id' => $channelId,
-            ],
-            $updateData
-        );
+            ], $updateData));
+        }
+
+        return $account;
     }
 
     /**
@@ -182,30 +209,30 @@ class YouTubeService
      */
     public function refreshToken(SocialAccount $account): void
     {
-        if (!$account->refresh_token) {
+        if (! $account->refresh_token) {
             throw new \Exception('No refresh token available for YouTube account.');
         }
 
         $refreshToken = Crypt::decrypt($account->refresh_token);
 
         $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
-            'client_id'     => $this->clientId,
+            'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
             'refresh_token' => $refreshToken,
-            'grant_type'    => 'refresh_token',
+            'grant_type' => 'refresh_token',
         ]);
 
         if ($response->failed()) {
             $account->update(['is_active' => false]);
-            throw new \Exception('Failed to refresh YouTube token: ' . $response->body());
+            throw new \Exception('Failed to refresh YouTube token: '.$response->body());
         }
 
         $tokenData = $response->json();
 
         $account->update([
-            'access_token'     => Crypt::encrypt($tokenData['access_token']),
+            'access_token' => Crypt::encrypt($tokenData['access_token']),
             'token_expires_at' => now()->addSeconds($tokenData['expires_in']),
-            'is_active'        => true,
+            'is_active' => true,
         ]);
     }
 }

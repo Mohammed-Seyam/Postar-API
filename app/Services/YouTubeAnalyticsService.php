@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\PostTarget;
 use App\Models\PostAnalytics;
+use App\Models\PostTarget;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -16,57 +17,99 @@ class YouTubeAnalyticsService
         $this->youtubeService = $youtubeService;
     }
 
+
+
     /**
-     * Fetches analytics for a specific YouTube post
+     * Fetch analytics for a batch of YouTube post targets (max 50)
+     *
+     * @param  Collection  $targets  Collection of PostTarget models
+     * @param  string  $accessToken  Decrypted access token for the user
      */
-    public function fetchAnalytics(PostTarget $postTarget): void
+    public function fetchAnalyticsBatch(Collection $targets, string $accessToken): void
     {
+        if ($targets->isEmpty()) {
+            return;
+        }
+
+        $videoIds = $targets->pluck('platform_post_id')->filter()->toArray();
+
+        if (empty($videoIds)) {
+            return;
+        }
+
         try {
-            if (!$postTarget->platform_post_id || $postTarget->status !== 'published') {
-                return;
-            }
-
-            $account = $postTarget->socialAccount;
-
-            // Get valid token
-            $accessToken = $this->youtubeService->getValidToken($account);
-
-            // Call videos.list with part=statistics
             $response = Http::withToken($accessToken)
                 ->get('https://www.googleapis.com/youtube/v3/videos', [
                     'part' => 'statistics',
-                    'id' => $postTarget->platform_post_id,
+                    'id' => implode(',', $videoIds),
                 ]);
 
             if ($response->failed()) {
-                throw new \Exception('Failed to fetch YouTube analytics: ' . $response->body());
-            }
+                $errorMessage = $response->body();
+                Log::error('YouTube analytics batch query failed', [
+                    'message' => $errorMessage,
+                ]);
 
-            $items = $response->json('items');
-            if (empty($items)) {
+                $this->markBatchWithError($targets, "YouTube API error: {$errorMessage}");
+
                 return;
             }
 
-            $statistics = $items[0]['statistics'] ?? [];
+            $items = $response->json('items', []);
+            $itemsMap = [];
+            foreach ($items as $item) {
+                if (isset($item['id'])) {
+                    $itemsMap[$item['id']] = $item['statistics'] ?? [];
+                }
+            }
 
-            // Upsert into post_analytics
-            PostAnalytics::updateOrCreate(
-                [
-                    'post_target_id' => $postTarget->id,
-                    'platform' => 'youtube',
-                ],
-                [
-                    'views' => $statistics['viewCount'] ?? 0,
-                    'likes' => $statistics['likeCount'] ?? 0,
-                    'comments' => $statistics['commentCount'] ?? 0,
-                    'fetched_at' => now(),
-                ]
-            );
+            foreach ($targets as $target) {
+                $platformPostId = $target->platform_post_id;
+
+                if (isset($itemsMap[$platformPostId])) {
+                    $statistics = $itemsMap[$platformPostId];
+
+                    PostAnalytics::updateOrCreate(
+                        [
+                            'post_target_id' => $target->id,
+                            'platform' => 'youtube',
+                        ],
+                        [
+                            'views' => $statistics['viewCount'] ?? 0,
+                            'likes' => $statistics['likeCount'] ?? 0,
+                            'comments' => $statistics['commentCount'] ?? 0,
+                            'shares' => 0,
+                            'fetched_at' => now(),
+                        ]
+                    );
+
+                    $target->update([
+                        'analytics_fetched_at' => now(),
+                        'analytics_error' => null,
+                    ]);
+                } else {
+                    $target->update([
+                        'analytics_error' => 'Video not found on YouTube',
+                    ]);
+                }
+            }
 
         } catch (\Throwable $e) {
-            Log::error('YouTube analytics fetch failed', [
-                'post_target_id' => $postTarget->id,
-                'error' => $e->getMessage()
+            Log::error('YouTube analytics batch query exception', [
+                'error' => $e->getMessage(),
+            ]);
+            $this->markBatchWithError($targets, 'Exception: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Mark all targets in this batch with a specific error
+     */
+    private function markBatchWithError(Collection $targets, string $error): void
+    {
+        foreach ($targets as $target) {
+            $target->update([
+                'analytics_error' => substr($error, 0, 500),
             ]);
         }
     }

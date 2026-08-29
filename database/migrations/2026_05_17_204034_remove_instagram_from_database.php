@@ -1,9 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -14,9 +13,9 @@ return new class extends Migration
         foreach ($plans as $plan) {
             $platforms = json_decode($plan->allowed_platforms, true);
             if (is_array($platforms)) {
-                $platforms = array_values(array_filter($platforms, fn($p) => $p !== 'instagram'));
+                $platforms = array_values(array_filter($platforms, fn ($p) => $p !== 'instagram'));
                 DB::table('plans')->where('id', $plan->id)->update([
-                    'allowed_platforms' => json_encode($platforms)
+                    'allowed_platforms' => json_encode($platforms),
                 ]);
             }
         }
@@ -33,7 +32,7 @@ return new class extends Migration
                 DB::table('post_analytics')->whereIn('post_target_id', function ($query) use ($instagramAccounts) {
                     $query->select('id')->from('post_targets')->whereIn('social_account_id', $instagramAccounts);
                 })->delete();
-                
+
                 DB::table('post_targets')->whereIn('social_account_id', $instagramAccounts)->delete();
                 DB::table('social_accounts')->where('platform', 'instagram')->delete();
             }

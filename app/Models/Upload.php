@@ -10,6 +10,8 @@ class Upload extends Model
         'user_id',
         'filename',
         'key',
+        'content_type',
+        'expected_size',
         'expires_at',
         'status',
         'uploaded_at',
@@ -27,5 +29,6 @@ class Upload extends Model
 
     public function video()
     {
-        return $this->hasOne(Video::class);
+        return $this->hasOne(Post::class, 'video_path', 'key');
     }
+}

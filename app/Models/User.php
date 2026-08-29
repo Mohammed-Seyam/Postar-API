@@ -23,11 +23,14 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'password',
         'phone',
         'settings',
-        'plan_id',
-        'plan_expires_at',
     ];
+
+    // Billing-critical columns are intentionally excluded from mass assignment.
+    // They must only be set via forceFill() in trusted server-side flows
+    // (webhooks, Paddle sync, registration), never from request input.
 
     /**
      * The attributes that should be hidden for serialization.

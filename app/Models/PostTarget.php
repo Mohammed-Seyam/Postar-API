@@ -19,10 +19,15 @@ class PostTarget extends Model
         'platform_post_id',
         'error_message',
         'published_at',
+        'analytics_fetched_at',
+        'analytics_error',
+        'platform_options',
     ];
 
     protected $casts = [
         'published_at' => 'datetime',
+        'analytics_fetched_at' => 'datetime',
+        'platform_options' => 'array',
     ];
 
     public function post(): BelongsTo
@@ -32,7 +37,7 @@ class PostTarget extends Model
 
     public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(SocialAccount::class);
+        return $this->belongsTo(SocialAccount::class)->withTrashed();
     }
 
     public function analytics(): HasOne
