@@ -9,62 +9,47 @@ class PlanSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     *
+     * Single source of truth for plan limits. 1 video = 1 unit of the monthly
+     * quota no matter how many platforms it is published to. storage_gb is
+     * enforced by the backend but never shown on pricing cards. price_yearly is
+     * left untouched: annual billing is disabled for now.
      */
     public function run(): void
     {
-        // Upsert plans to avoid duplicates
-        DB::table('plans')->upsert([
+        $plans = [
             [
-                'name' => 'Free',
-                'slug' => 'free',
-                'price' => 0.00,
-                'video_limit' => 5,
-                'storage_limit' => 1024 * 1024 * 500, // 500MB
-                'features' => json_encode([
-                    'monthly_posts_limit' => 5,
-                    'max_social_accounts' => 1,
-                    'can_bulk_upload' => false,
-                    'max_bulk_upload_size' => 0,
-                    'can_customize_captions' => false,
-                    'auto_retry_count' => 0,
-                ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'id' => 1, 'name' => 'free', 'display_name' => 'مجاني',
+                'price_monthly' => 0.00,
+                'videos_per_month' => 5, 'max_social_accounts' => 2, 'storage_gb' => 1,
+                'max_file_size_mb' => 150, 'bulk_upload_limit' => 1,
+                'analytics_days' => 0, 'retention_days' => 30, 'custom_caption' => 0, 'auto_retry' => 0,
             ],
             [
-                'name' => 'Creator',
-                'slug' => 'creator',
-                'price' => 8.99,
-                'video_limit' => 30,
-                'storage_limit' => 1024 * 1024 * 1024 * 5, // 5GB
-                'features' => json_encode([
-                    'monthly_posts_limit' => 30,
-                    'max_social_accounts' => 2,
-                    'can_bulk_upload' => true,
-                    'max_bulk_upload_size' => 5,
-                    'can_customize_captions' => true,
-                    'auto_retry_count' => 3,
-                ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'id' => 2, 'name' => 'creator', 'display_name' => 'المبدع',
+                'price_monthly' => 8.99,
+                'videos_per_month' => 30, 'max_social_accounts' => 3, 'storage_gb' => 5,
+                'max_file_size_mb' => 150, 'bulk_upload_limit' => 5,
+                'analytics_days' => 0, 'retention_days' => 60, 'custom_caption' => 1, 'auto_retry' => 1,
             ],
             [
-                'name' => 'Pro',
-                'slug' => 'pro',
-                'price' => 18.99,
-                'video_limit' => 999999,
-                'storage_limit' => 1024 * 1024 * 1024 * 50, // 50GB
-                'features' => json_encode([
-                    'monthly_posts_limit' => -1, // -1 means unlimited
-                    'max_social_accounts' => 3,
-                    'can_bulk_upload' => true,
-                    'max_bulk_upload_size' => 20,
-                    'can_customize_captions' => true,
-                    'auto_retry_count' => -1, // -1 means unlimited or arbitrary large
-                ]),
+                'id' => 3, 'name' => 'pro', 'display_name' => 'المحترف',
+                'price_monthly' => 18.99,
+                'videos_per_month' => 150, 'max_social_accounts' => 5, 'storage_gb' => 20, // 150 = fair-use cap
+                'max_file_size_mb' => 150, 'bulk_upload_limit' => 20,
+                'analytics_days' => 90, 'retention_days' => 90, 'custom_caption' => 1, 'auto_retry' => 1,
+            ],
+        ];
+
+        foreach ($plans as $plan) {
+            DB::table('plans')->updateOrInsert(['id' => $plan['id']], $plan + [
+                // Deprecated: no longer enforced, mirrored for older readers.
+                'max_posts_per_month' => $plan['videos_per_month'],
+                'max_uploads_per_month' => $plan['videos_per_month'],
+                'allowed_platforms' => json_encode(['tiktok', 'youtube']),
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
-        ], ['slug'], ['name', 'price', 'video_limit', 'storage_limit', 'features', 'updated_at']);
+            ]);
+        }
     }
 }

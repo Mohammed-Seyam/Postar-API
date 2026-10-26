@@ -97,10 +97,10 @@ class SocialAuthController extends Controller
                 }
 
                 // We ensure we don't exceed plan limits when creating a new account.
-                $planLimit = $user->plan->max_social_accounts ?? 0;
+                $planLimit = (int) $user->plan->max_social_accounts;
                 $currentCount = $user->socialAccounts()->count();
 
-                if ($currentCount >= $planLimit && $planLimit !== -1) {
+                if ($currentCount >= $planLimit) {
                     return redirect("{$frontendUrl}/app/accounts?error=plan_limit_reached");
                 }
 
@@ -157,10 +157,10 @@ class SocialAuthController extends Controller
             return redirect("{$frontendUrl}/dashboard?error=unauthenticated");
         }
 
-        $planLimit = $user->plan->max_social_accounts ?? 0;
+        $planLimit = (int) $user->plan->max_social_accounts;
         $currentCount = $user->socialAccounts()->count();
 
-        if ($currentCount >= $planLimit && $planLimit !== -1) {
+        if ($currentCount >= $planLimit) {
             return redirect("{$frontendUrl}/settings/accounts?error=plan_limit_reached");
         }
 

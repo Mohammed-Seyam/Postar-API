@@ -2,13 +2,14 @@
 
 namespace App\Support;
 
+use App\Models\Plan;
+
 class LimitMessages
 {
     public static function get(string $type, mixed $current, mixed $max, string $plan): array
     {
         return match ($type) {
-            'posts' => self::posts($current, $max, $plan),
-            'uploads' => self::uploads($current, $max, $plan),
+            'videos', 'posts', 'uploads' => self::videos($current, $max, $plan),
             'bulk' => self::bulk($current, $max, $plan),
             'file_size' => self::fileSize($current, $max),
             'accounts' => self::accounts($current, $max, $plan),
@@ -18,45 +19,47 @@ class LimitMessages
         };
     }
 
-    private static function posts($used, $max, $plan): array
+    /** Upgrade path: free → creator → pro. */
+    private static function nextPlan(string $plan): ?Plan
     {
-        if ($plan === 'free') {
-            return [
-                'user_message' => "لقد استنفدت جميع المنشورات المجانية {$max} هذا الشهر. قم بالترقية إلى المبدعين لجدولة ما يصل إلى 20 منشورًا شهريًا.",
-                'cta_text' => 'الترقية إلى Creator — $9/شهر',
-                'cta_action' => 'upgrade:creator',
-                'upgrade_to' => 'creator',
-            ];
-        }
-        if ($plan === 'creator') {
-            return [
-                'user_message' => 'لقد استنفدت جميع المنشورات 20 هذا الشهر. قم بالترقية إلى الاحترافيين لجدولة غير محدودة.',
-                'cta_text' => 'الترقية إلى Pro — $19/شهر',
-                'cta_action' => 'upgrade:pro',
-                'upgrade_to' => 'pro',
-            ];
-        }
-
-        return self::generic();
+        return match ($plan) {
+            'free' => Plan::byName('creator'),
+            'creator' => Plan::byName('pro'),
+            default => null,
+        };
     }
 
-    private static function uploads($used, $max, $plan): array
+    /** Arabic counting: 3–10 take the plural form, everything else the singular. */
+    private static function videosLabel(int $n): string
     {
-        if ($plan === 'free') {
+        return $n >= 3 && $n <= 10 ? "{$n} فيديوهات" : "{$n} فيديو";
+    }
+
+    private static function upgradeCta(Plan $next): array
+    {
+        $price = rtrim(rtrim(number_format((float) $next->price_monthly, 2, '.', ''), '0'), '.');
+
+        return [
+            'cta_text' => "الترقية إلى {$next->display_name} — \${$price}/شهر",
+            'cta_action' => 'upgrade:'.$next->name,
+            'upgrade_to' => $next->name,
+        ];
+    }
+
+    private static function videos($used, $max, $plan): array
+    {
+        $next = self::nextPlan($plan);
+
+        if ($next) {
             return [
-                'user_message' => "لقد قمت برفع {$max} فيديوهات مجانية هذا الشهر. قم بالترقية إلى المبدعين لرفع 20 فيديو شهريًا.",
-                'cta_text' => 'الترقية إلى Creator — $9/شهر',
-                'cta_action' => 'upgrade:creator',
-                'upgrade_to' => 'creator',
-            ];
+                'user_message' => 'وصلت لحد '.self::videosLabel((int) $max).' هذا الشهر. رقّي لخطة '.$next->display_name.' لنشر حتى '.self::videosLabel($next->videos_per_month).'.',
+            ] + self::upgradeCta($next);
         }
-        if ($plan === 'creator') {
+
+        if ($plan === 'pro') {
             return [
-                'user_message' => 'لقد قمت برفع 20 فيديو هذا الشهر. قم بالترقية إلى الاحترافيين لرفع غير محدود.',
-                'cta_text' => 'الترقية إلى Pro — $19/شهر',
-                'cta_action' => 'upgrade:pro',
-                'upgrade_to' => 'pro',
-            ];
+                'user_message' => 'وصلت لحد '.self::videosLabel((int) $max).' هذا الشهر (حد الاستخدام العادل في خطة المحترف). يتجدد رصيدك مع بداية الشهر القادم.',
+            ] + self::generic();
         }
 
         return self::generic();
@@ -64,24 +67,18 @@ class LimitMessages
 
     private static function bulk($count, $max, $plan): array
     {
-        if ($plan === 'free') {
-            return [
-                'user_message' => 'يمكنك رفع فيديو واحد فقط في الباقة المجانية. قم بالترقية للرفع المتعدد.',
-                'cta_text' => 'تفعيل الرفع المتعدد',
-                'cta_action' => 'upgrade:creator',
-                'upgrade_to' => 'creator',
-            ];
-        }
-        if ($plan === 'creator') {
-            return [
-                'user_message' => "باقة المبدعين تسمح برفع 5 فيديوهات معاً. لقد اخترت {$count}. للترقية حتى 20 استخدم الباقة الاحترافية.",
-                'cta_text' => 'الترقية للرفع حتى 20 فيديو',
-                'cta_action' => 'upgrade:pro',
-                'upgrade_to' => 'pro',
-            ];
+        $next = self::nextPlan($plan);
+        if (! $next) {
+            return self::generic();
         }
 
-        return self::generic();
+        $message = (int) $max <= 1
+            ? 'يمكنك رفع فيديو واحد فقط في المرة الواحدة في خطتك الحالية.'
+            : 'خطتك الحالية تسمح برفع '.self::videosLabel((int) $max)." معاً. لقد اخترت {$count}.";
+
+        return [
+            'user_message' => $message.' رقّي لخطة '.$next->display_name.' لرفع حتى '.self::videosLabel($next->bulk_upload_limit).' معاً.',
+        ] + self::upgradeCta($next);
     }
 
     private static function fileSize($sizeMb, $maxMb): array
@@ -96,21 +93,18 @@ class LimitMessages
 
     private static function accounts($connected, $max, $plan): array
     {
-        if ($plan === 'free') {
+        $next = self::nextPlan($plan);
+
+        if ($next) {
             return [
-                'user_message' => 'الباقة المجانية تسمح بحساب واحد مرتبط. قم بالترقية لربط حسابين في أي منصة.',
-                'cta_text' => 'ربط حساب ثاني',
-                'cta_action' => 'upgrade:creator',
-                'upgrade_to' => 'creator',
-            ];
+                'user_message' => "وصلت للحد الأقصى من الحسابات المرتبطة في خطتك ({$max}). رقّي لخطة {$next->display_name} لربط حتى {$next->max_social_accounts} حسابات.",
+            ] + self::upgradeCta($next);
         }
-        if ($plan === 'creator') {
+
+        if ($plan === 'pro') {
             return [
-                'user_message' => 'باقة المبدعين تسمح بحسابين مرتبطين. قم بالترقية لربط 3 حسابات.',
-                'cta_text' => 'ربط الحساب الثالث',
-                'cta_action' => 'upgrade:pro',
-                'upgrade_to' => 'pro',
-            ];
+                'user_message' => "وصلت للحد الأقصى من الحسابات المرتبطة في خطة المحترف ({$max}).",
+            ] + self::generic();
         }
 
         return self::generic();
@@ -118,46 +112,26 @@ class LimitMessages
 
     private static function analytics($plan): array
     {
-        if ($plan === 'free') {
-            return [
-                'user_message' => 'الإحصائيات متاحة بدءاً من باقة المبدعين. اكتشف كيف تؤدي منشوراتك على كل منصة.',
-                'cta_text' => 'تفعيل الإحصائيات',
-                'cta_action' => 'upgrade:creator',
-                'upgrade_to' => 'creator',
-            ];
-        }
-        if ($plan === 'creator') {
-            return [
-                'user_message' => 'الإحصائيات المتقدمة (تاريخ 90 يوم، أداء أعمق) متاحة في الباقة الاحترافية.',
-                'cta_text' => 'تفعيل الإحصائيات المتقدمة',
-                'cta_action' => 'upgrade:pro',
-                'upgrade_to' => 'pro',
-            ];
+        $pro = Plan::byName('pro');
+        if (! $pro || $plan === 'pro') {
+            return self::generic();
         }
 
-        return self::generic();
+        return [
+            'user_message' => 'لوحة التحليلات متاحة في خطة المحترف. اكتشف كيف تؤدي فيديوهاتك على كل منصة.',
+        ] + self::upgradeCta($pro);
     }
 
     private static function storage($usedGb, $maxGb, $plan): array
     {
-        if ($plan === 'free') {
-            return [
-                'user_message' => "المساحة ممتلئة (تم استخدام {$usedGb} جيجابايت من أصل {$maxGb} جيجابايت). قم بالترقية إلى Creator للحصول على 5 جيجابايت.",
-                'cta_text' => 'الترقية إلى Creator',
-                'cta_action' => 'upgrade:creator',
-                'upgrade_to' => 'creator',
-            ];
-        }
-        if ($plan === 'creator') {
-            return [
-                'user_message' => "المساحة ممتلئة (تم استخدام {$usedGb} جيجابايت من أصل {$maxGb} جيجابايت). قم بالترقية إلى Pro للحصول على 20 جيجابايت.",
-                'cta_text' => 'الترقية إلى Pro',
-                'cta_action' => 'upgrade:pro',
-                'upgrade_to' => 'pro',
-            ];
+        $next = self::nextPlan($plan);
+        if (! $next) {
+            return self::generic();
         }
 
-        return self::generic();
+        return [
+            'user_message' => "المساحة ممتلئة (تم استخدام {$usedGb} جيجابايت من أصل {$maxGb} جيجابايت). رقّي لخطة {$next->display_name} للحصول على {$next->storage_gb} جيجابايت.",
+        ] + self::upgradeCta($next);
     }
 
     private static function generic(): array

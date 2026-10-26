@@ -78,10 +78,10 @@ class YouTubeService
 
         $user = \App\Models\User::findOrFail($stateData['user_id']);
 
-        $planLimit = $user->plan->max_social_accounts ?? 0;
+        $planLimit = (int) $user->plan->max_social_accounts;
         $currentCount = $user->socialAccounts()->count();
 
-        if ($currentCount >= $planLimit && $planLimit !== -1) {
+        if ($currentCount >= $planLimit) {
             throw new \Exception('plan_limit_reached');
         }
 

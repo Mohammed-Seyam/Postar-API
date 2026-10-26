@@ -58,11 +58,11 @@ Route::middleware(['auth:sanctum', 'throttle:100,1'])->group(function () {
 
     // Posts & Scheduling
     Route::apiResource('posts', \App\Http\Controllers\Api\PostController::class)
-        ->middleware(['plan:posts', 'plan:uploads', 'plan:custom_caption']);
+        ->middleware(['plan:videos', 'plan:custom_caption']);
 
     // Video Management
     Route::apiResource('videos', \App\Http\Controllers\VideoController::class)
-        ->middleware(['plan:uploads']);
+        ->middleware(['plan:videos']);
 
     // Subscriptions webhook
 
@@ -94,19 +94,19 @@ Route::middleware(['auth:sanctum', 'throttle:100,1'])->group(function () {
     // Accepts both video and carousel-image uploads. /media/* are the canonical
     // routes; /videos/* remain as backward-compatible aliases.
     Route::post('/videos/presigned-url', [\App\Http\Controllers\VideoUploadController::class, 'generatePresignedUrl'])
-        ->middleware(['throttle:60,1', 'plan:uploads']);
+        ->middleware(['throttle:60,1', 'plan:videos']);
     Route::post('/videos/confirm-upload', [\App\Http\Controllers\VideoUploadController::class, 'confirmUpload'])
-        ->middleware(['throttle:60,1', 'plan:uploads']);
+        ->middleware(['throttle:60,1', 'plan:videos']);
     Route::post('/media/presigned-url', [\App\Http\Controllers\VideoUploadController::class, 'generatePresignedUrl'])
-        ->middleware(['throttle:60,1', 'plan:uploads']);
+        ->middleware(['throttle:60,1', 'plan:videos']);
     Route::post('/media/confirm-upload', [\App\Http\Controllers\VideoUploadController::class, 'confirmUpload'])
-        ->middleware(['throttle:60,1', 'plan:uploads']);
+        ->middleware(['throttle:60,1', 'plan:videos']);
 
     // Carousel slide management
     Route::post('/posts/{post}/media/reorder', [\App\Http\Controllers\Api\PostMediaController::class, 'reorder'])
-        ->middleware(['plan:uploads']);
+        ->middleware(['plan:videos']);
     Route::delete('/posts/{post}/media/{media}', [\App\Http\Controllers\Api\PostMediaController::class, 'destroy'])
-        ->middleware(['plan:uploads']);
+        ->middleware(['plan:videos']);
 
     // Support & Feedback
     Route::post('/support/contact', [\App\Http\Controllers\Api\SupportController::class, 'contact']);

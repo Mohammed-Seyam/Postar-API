@@ -68,7 +68,11 @@ class ReportingRepository
             ->whereNull('deleted_at')
             ->sum('file_size_mb') * 1024 * 1024;
 
-        $totalBytes = 1073741824; // 1GB default limit or dynamic from Plan
+        $storageGb = DB::table('users')
+            ->join('plans', 'plans.id', '=', 'users.plan_id')
+            ->where('users.id', $userId)
+            ->value('plans.storage_gb');
+        $totalBytes = (int) $storageGb * 1024 * 1024 * 1024;
 
         return (object) [
             'used_bytes' => $usedBytes,

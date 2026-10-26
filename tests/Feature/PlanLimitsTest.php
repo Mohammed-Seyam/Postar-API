@@ -24,6 +24,7 @@ class PlanLimitsTest extends TestCase
         Cache::flush();
 
         // Define test routes protected by the middleware
+        Route::middleware(['api', 'plan:videos'])->post('/test/videos', fn () => response('ok'));
         Route::middleware(['api', 'plan:posts'])->post('/test/posts', fn () => response('ok'));
         Route::middleware(['api', 'plan:uploads'])->post('/test/uploads', fn () => response('ok'));
         Route::middleware(['api', 'plan:bulk_upload'])->post('/test/bulk-upload', fn () => response('ok'));
@@ -67,9 +68,21 @@ class PlanLimitsTest extends TestCase
         return $posts;
     }
 
-    private function createSocialAccounts(User $user, int $count)
+    private function createPostWithTargets(User $user, int $targets): Post
     {
-        for ($i = 0; $i < $count; $i++) {
+        $post = Post::factory()->create(['user_id' => $user->id, 'status' => 'scheduled']);
+        PostTarget::factory()->count($targets)->create([
+            'post_id' => $post->id,
+            'status' => 'pending',
+            'created_at' => now(),
+        ]);
+
+        return $post;
+    }
+
+    private function createSocialAccounts(User $user, int $count, int $offset = 0)
+    {
+        for ($i = $offset; $i < $offset + $count; $i++) {
             DB::table('social_accounts')->insert([
                 'user_id' => $user->id,
                 'platform' => 'tiktok',
@@ -81,202 +94,230 @@ class PlanLimitsTest extends TestCase
         }
     }
 
-    // 1. Free user schedules 6th post -> 402 with upgrade prompt
-    public function test_free_user_schedules_6th_post()
+    // --- Video quota (1 video = 1 unit, regardless of platforms) ---
+
+    public function test_video_published_to_3_platforms_consumes_one_unit()
+    {
+        $user = $this->createUser(1);
+        $this->createPostWithTargets($user, 3);
+
+        $this->actingAs($user)->getJson('/api/user/plan-context')
+            ->assertOk()
+            ->assertJsonPath('usage.videos_this_month', 1)
+            ->assertJsonPath('limits.videos_per_month', 5);
+    }
+
+    public function test_free_user_with_4_multi_platform_videos_can_add_5th()
+    {
+        $user = $this->createUser(1);
+        for ($i = 0; $i < 4; $i++) {
+            $this->createPostWithTargets($user, 3);
+        }
+
+        $this->actingAs($user)->postJson('/test/videos', ['platforms' => ['tiktok', 'youtube']])
+            ->assertStatus(200);
+    }
+
+    public function test_free_user_schedules_6th_video()
     {
         $user = $this->createUser(1);
         $this->createPosts($user, 5);
 
-        $response = $this->actingAs($user)->postJson('/test/posts', ['platforms' => ['tiktok']]);
-
-        $response->assertStatus(402)
-            ->assertJsonPath('upgrade_to', 'creator');
+        $this->actingAs($user)->postJson('/test/posts', ['platforms' => ['tiktok']])
+            ->assertStatus(402)
+            ->assertJsonPath('limit_type', 'videos')
+            ->assertJsonPath('upgrade_to', 'creator')
+            ->assertJsonPath('cta_action', 'upgrade:creator');
     }
 
-    // 2. Free user uploads 6th video -> 402 with upgrade prompt
     public function test_free_user_uploads_6th_video()
     {
         $user = $this->createUser(1);
         $this->createVideos($user, 5);
 
-        $response = $this->actingAs($user)->postJson('/test/uploads', [
+        $this->actingAs($user)->postJson('/test/uploads', [
             'files' => [UploadedFile::fake()->create('video.mp4', 100)],
-        ]);
-
-        $response->assertStatus(402)
-            ->assertJsonPath('upgrade_to', 'creator');
+        ])->assertStatus(402)->assertJsonPath('upgrade_to', 'creator');
     }
 
-    // 3. Free user selects 2 files for bulk upload -> 402
-    public function test_free_user_bulk_upload_2_files_fails()
+    public function test_scheduling_an_already_counted_video_at_quota_is_allowed()
     {
         $user = $this->createUser(1);
+        $videos = $this->createVideos($user, 5);
 
-        $response = $this->actingAs($user)->postJson('/test/bulk-upload', [
-            'files' => [
-                UploadedFile::fake()->create('v1.mp4', 100),
-                UploadedFile::fake()->create('v2.mp4', 100),
-            ],
-        ]);
-
-        $response->assertStatus(402)
-            ->assertJsonPath('upgrade_to', 'creator');
+        $this->actingAs($user)->postJson('/test/posts', [
+            'video_id' => $videos->first()->id,
+            'platforms' => ['tiktok', 'youtube'],
+        ])->assertStatus(200);
     }
 
-    // 4. Free user tries to connect 2nd social account -> 402
-    public function test_free_user_connects_2nd_social_account_fails()
+    public function test_creator_user_can_add_30th_video()
+    {
+        $user = $this->createUser(2);
+        $this->createVideos($user, 29);
+
+        $this->actingAs($user)->postJson('/test/videos')->assertStatus(200);
+    }
+
+    public function test_creator_user_blocked_at_31st_video()
+    {
+        $user = $this->createUser(2);
+        $this->createVideos($user, 30);
+
+        $this->actingAs($user)->postJson('/test/videos')
+            ->assertStatus(402)
+            ->assertJsonPath('upgrade_to', 'pro')
+            ->assertJsonPath('message', 'وصلت لحد 30 فيديو هذا الشهر. رقّي لخطة المحترف لنشر حتى 150 فيديو.');
+    }
+
+    public function test_pro_user_can_add_150th_video()
+    {
+        $user = $this->createUser(3);
+        $this->createVideos($user, 149);
+
+        $this->actingAs($user)->postJson('/test/videos')->assertStatus(200);
+    }
+
+    public function test_pro_user_blocked_at_151st_video()
+    {
+        $user = $this->createUser(3);
+        $this->createVideos($user, 150);
+
+        $this->actingAs($user)->postJson('/test/videos')
+            ->assertStatus(402)
+            ->assertJsonPath('limit_type', 'videos')
+            ->assertJsonPath('maximum', 150)
+            ->assertJsonPath('upgrade_to', null);
+    }
+
+    // --- Linked accounts (2 / 3 / 5) ---
+
+    public function test_free_user_can_link_2nd_account()
     {
         $user = $this->createUser(1);
         $this->createSocialAccounts($user, 1);
 
-        $response = $this->actingAs($user)->postJson('/test/social');
+        $this->actingAs($user)->postJson('/test/social')->assertStatus(200);
+    }
 
-        $response->assertStatus(402)
+    public function test_free_user_cannot_link_3rd_account()
+    {
+        $user = $this->createUser(1);
+        $this->createSocialAccounts($user, 2);
+
+        $this->actingAs($user)->postJson('/test/social')
+            ->assertStatus(402)
             ->assertJsonPath('upgrade_to', 'creator');
     }
 
-    // 5. Free user schedules post to YouTube -> 200 OK
-    public function test_free_user_schedules_youtube_success()
-    {
-        $user = $this->createUser(1);
-
-        $response = $this->actingAs($user)->postJson('/test/posts', ['platforms' => ['youtube']]);
-
-        $response->assertStatus(200);
-    }
-
-    // 6. Free user opens Analytics tab -> blurred view with upgrade CTA (Testing backend gives 402)
-    public function test_free_user_analytics_fails()
-    {
-        $user = $this->createUser(1);
-
-        $response = $this->actingAs($user)->getJson('/test/analytics');
-
-        $response->assertStatus(402)
-            ->assertJsonPath('upgrade_to', 'creator');
-    }
-
-    // 7. Creator user uploads 21st video -> 402
-    public function test_creator_user_uploads_21st_video()
-    {
-        $user = $this->createUser(2);
-        $this->createVideos($user, 20);
-
-        $response = $this->actingAs($user)->postJson('/test/uploads', [
-            'files' => [UploadedFile::fake()->create('v.mp4', 100)],
-        ]);
-
-        $response->assertStatus(402)
-            ->assertJsonPath('upgrade_to', 'pro');
-    }
-
-    // 8. Creator user schedules 21st post -> 402
-    public function test_creator_user_schedules_21st_post()
-    {
-        $user = $this->createUser(2);
-        $this->createPosts($user, 20);
-
-        $response = $this->actingAs($user)->postJson('/test/posts', ['platforms' => ['tiktok']]);
-
-        $response->assertStatus(402)
-            ->assertJsonPath('upgrade_to', 'pro');
-    }
-
-    // 9. Creator user selects 6 files for bulk upload -> 402
-    public function test_creator_user_bulk_upload_6_files_fails()
-    {
-        $user = $this->createUser(2);
-
-        $files = array_fill(0, 6, UploadedFile::fake()->create('v.mp4', 100));
-
-        $response = $this->actingAs($user)->postJson('/test/bulk-upload', [
-            'files' => $files,
-        ]);
-
-        $response->assertStatus(402)
-            ->assertJsonPath('upgrade_to', 'pro');
-    }
-
-    // 10. Creator user tries to connect 3rd social account -> 402
-    public function test_creator_user_connects_3rd_social_account_fails()
+    public function test_creator_user_can_link_3rd_account()
     {
         $user = $this->createUser(2);
         $this->createSocialAccounts($user, 2);
 
-        $response = $this->actingAs($user)->postJson('/test/social');
+        $this->actingAs($user)->postJson('/test/social')->assertStatus(200);
+    }
 
-        $response->assertStatus(402)
+    public function test_creator_user_blocked_at_4th_account()
+    {
+        $user = $this->createUser(2);
+        $this->createSocialAccounts($user, 3);
+
+        $this->actingAs($user)->postJson('/test/social')
+            ->assertStatus(402)
             ->assertJsonPath('upgrade_to', 'pro');
     }
 
-    // 11. Creator user views advanced analytics (90-day) -> wait, the requirement is Pro for 90-day.
-    // The middleware checkAnalytics just returns 402 if days=0. Creator has days=30.
-    // So Creator viewing analytics returns 200, but the UI restricts 90-day. We can test that Creator has 200 on basic analytics.
-    public function test_creator_user_analytics_success()
+    public function test_pro_user_can_link_5th_but_not_6th_account()
+    {
+        $user = $this->createUser(3);
+        $this->createSocialAccounts($user, 4);
+        $this->actingAs($user)->postJson('/test/social')->assertStatus(200);
+
+        $this->createSocialAccounts($user, 1, 4);
+        $this->actingAs($user)->postJson('/test/social')->assertStatus(402);
+    }
+
+    // --- Bulk upload ---
+
+    public function test_free_user_bulk_upload_2_files_fails()
+    {
+        $user = $this->createUser(1);
+
+        $this->actingAs($user)->postJson('/test/bulk-upload', [
+            'files' => [
+                UploadedFile::fake()->create('v1.mp4', 100),
+                UploadedFile::fake()->create('v2.mp4', 100),
+            ],
+        ])->assertStatus(402)->assertJsonPath('upgrade_to', 'creator');
+    }
+
+    public function test_creator_user_bulk_upload_6_files_fails()
     {
         $user = $this->createUser(2);
-        $response = $this->actingAs($user)->getJson('/test/analytics');
-        $response->assertStatus(200);
+        $files = array_fill(0, 6, UploadedFile::fake()->create('v.mp4', 100));
+
+        $this->actingAs($user)->postJson('/test/bulk-upload', ['files' => $files])
+            ->assertStatus(402)
+            ->assertJsonPath('upgrade_to', 'pro');
     }
 
-    // 12. Pro user uploads 100 videos in a month -> 200 OK (unlimited)
-    public function test_pro_user_uploads_100_videos_success()
-    {
-        $user = $this->createUser(3);
-        $this->createVideos($user, 100);
-
-        $response = $this->actingAs($user)->postJson('/test/uploads', [
-            'files' => [UploadedFile::fake()->create('v.mp4', 100)],
-        ]);
-
-        $response->assertStatus(200);
-    }
-
-    // 13. Pro user schedules posts to TikTok and YouTube -> 200 OK
-    public function test_pro_user_schedules_any_platform_success()
-    {
-        $user = $this->createUser(3);
-        $response = $this->actingAs($user)->postJson('/test/posts', [
-            'platforms' => ['tiktok', 'youtube'],
-        ]);
-        $response->assertStatus(200);
-    }
-
-    // 14. Pro user selects 20 files for bulk upload -> 200 OK
     public function test_pro_user_bulk_upload_20_files_success()
     {
         $user = $this->createUser(3);
         $files = array_fill(0, 20, UploadedFile::fake()->create('v.mp4', 100));
 
-        $response = $this->actingAs($user)->postJson('/test/bulk-upload', ['files' => $files]);
-        $response->assertStatus(200);
+        $this->actingAs($user)->postJson('/test/bulk-upload', ['files' => $files])->assertStatus(200);
     }
 
-    // 15. Pro user selects 21 files for bulk upload -> 402
     public function test_pro_user_bulk_upload_21_files_fails()
     {
         $user = $this->createUser(3);
         $files = array_fill(0, 21, UploadedFile::fake()->create('v.mp4', 100));
 
-        $response = $this->actingAs($user)->postJson('/test/bulk-upload', ['files' => $files]);
-        $response->assertStatus(402);
+        $this->actingAs($user)->postJson('/test/bulk-upload', ['files' => $files])->assertStatus(402);
     }
 
-    // 16. Any user uploads a 160 MB file -> 402
+    // --- Analytics (Pro only) ---
+
+    public function test_free_user_analytics_fails()
+    {
+        $user = $this->createUser(1);
+
+        $this->actingAs($user)->getJson('/test/analytics')
+            ->assertStatus(402)
+            ->assertJsonPath('upgrade_to', 'pro');
+    }
+
+    public function test_creator_user_analytics_fails()
+    {
+        $user = $this->createUser(2);
+
+        $this->actingAs($user)->getJson('/test/analytics')
+            ->assertStatus(402)
+            ->assertJsonPath('upgrade_to', 'pro');
+    }
+
+    public function test_pro_user_analytics_success()
+    {
+        $user = $this->createUser(3);
+
+        $this->actingAs($user)->getJson('/test/analytics')->assertStatus(200);
+    }
+
+    // --- File size (150 MB on all plans) ---
+
     public function test_any_user_uploads_160mb_file_fails()
     {
-        $user = $this->createUser(3); // Pro user
-        $response = $this->actingAs($user)->postJson('/test/file-size', ['file_size_mb' => 160]);
-        $response->assertStatus(402);
+        $user = $this->createUser(3);
+
+        $this->actingAs($user)->postJson('/test/file-size', ['file_size_mb' => 160])->assertStatus(402);
     }
 
-    // 17. Any user uploads a 149 MB file -> 200 OK
     public function test_any_user_uploads_149mb_file_success()
     {
-        $user = $this->createUser(1); // Free user
-        $response = $this->actingAs($user)->postJson('/test/file-size', ['file_size_mb' => 149]);
-        $response->assertStatus(200);
-    }
+        $user = $this->createUser(1);
 
-    // Webhooks tests will be added directly here if needed or tested separately
+        $this->actingAs($user)->postJson('/test/file-size', ['file_size_mb' => 149])->assertStatus(200);
+    }
 }

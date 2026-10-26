@@ -54,7 +54,7 @@ class DashboardController extends Controller
         if (! $storage) {
             $storage = [
                 'used_bytes' => 0,
-                'total_bytes' => 1073741824, // 1GB default?
+                'total_bytes' => (int) ($request->user()->plan?->storage_gb ?? 0) * 1024 * 1024 * 1024,
                 'usage_percentage' => 0,
             ];
         }

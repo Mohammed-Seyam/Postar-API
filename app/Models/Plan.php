@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Plan extends Model
 {
@@ -14,8 +15,9 @@ class Plan extends Model
         'display_name',
         'price_monthly',
         'price_yearly',
-        'max_posts_per_month',
-        'max_uploads_per_month',
+        'videos_per_month',
+        'max_posts_per_month', // deprecated: use videos_per_month
+        'max_uploads_per_month', // deprecated: use videos_per_month
         'max_file_size_mb',
         'bulk_upload_limit',
         'max_social_accounts',
@@ -33,7 +35,13 @@ class Plan extends Model
         'allowed_platforms' => 'array',
         'custom_caption' => 'boolean',
         'auto_retry' => 'boolean',
+        'videos_per_month' => 'integer',
         'max_posts_per_month' => 'integer',
         'max_uploads_per_month' => 'integer',
     ];
+
+    public static function byName(string $name): ?self
+    {
+        return Cache::remember('plan:name:'.$name, 300, fn () => self::where('name', $name)->first());
+    }
 }

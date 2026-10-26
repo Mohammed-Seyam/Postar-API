@@ -4,7 +4,9 @@ namespace App\Http\Middleware;
 
 use App\Models\Plan;
 use App\Support\LimitMessages;
+use App\Support\VideoQuota;
 use Closure;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -25,8 +27,8 @@ class CheckPlanLimits
         $plan = $this->getPlan($user->plan_id);
 
         return match ($limit) {
-            'posts' => $this->checkPosts($request, $next, $user, $plan),
-            'uploads' => $this->checkUploads($request, $next, $user, $plan),
+            // 'posts' / 'uploads' are deprecated aliases of the single video quota.
+            'videos', 'posts', 'uploads' => $this->checkVideos($request, $next, $user, $plan),
             'bulk_upload' => $this->checkBulk($request, $next, $plan),
             'file_size' => $this->checkFileSize($request, $next, $plan),
             'social_accounts' => $this->checkAccounts($request, $next, $user, $plan),
@@ -42,49 +44,35 @@ class CheckPlanLimits
         return Cache::remember('plan:'.$planId, 300, fn () => Plan::find($planId));
     }
 
-    private function checkPosts($req, $next, $user, $plan): mixed
+    /**
+     * One monthly quota for videos. A video sent to several platforms is still
+     * one unit, so requests that act on an already-counted video (scheduling an
+     * uploaded draft, adding a carousel slide) consume nothing.
+     */
+    private function checkVideos($req, $next, $user, $plan): mixed
     {
-        if (is_null($plan->max_posts_per_month)) {
-            return $next($req);
-        }
+        $used = VideoQuota::used($user);
+        $incoming = $this->incomingVideos($req, $user);
 
-        $used = \App\Models\PostTarget::whereHas('post', function ($q) use ($user) {
-            $q->where('user_id', $user->id);
-        })
-            ->whereYear('created_at', now()->year)
-            ->whereMonth('created_at', now()->month)
-            ->whereNotIn('status', ['cancelled', 'failed'])
-            ->count();
-
-        // Account for bulk scheduling requests where multiple platforms are provided in one request
-        $incoming = count($req->input('platforms', [1]));
-
-        if (($used + $incoming) > $plan->max_posts_per_month) {
-            return $this->limitResponse('posts', $used, $plan->max_posts_per_month, $plan->name);
+        if (($used + $incoming) > $plan->videos_per_month) {
+            return $this->limitResponse('videos', $used, $plan->videos_per_month, $plan->name);
         }
 
         return $next($req);
     }
 
-    private function checkUploads($req, $next, $user, $plan): mixed
+    private function incomingVideos($req, $user): int
     {
-        if (is_null($plan->max_uploads_per_month)) {
-            return $next($req);
+        $existing = $req->route('post') ?? $req->route('video') ?? $req->input('video_id') ?? $req->input('post_id');
+        if ($existing instanceof Model) {
+            $existing = $existing->getKey();
         }
 
-        $used = \App\Models\Post::where('user_id', $user->id)
-            ->whereYear('created_at', now()->year)
-            ->whereMonth('created_at', now()->month)
-            ->whereNotIn('status', ['failed', 'deleted'])
-            ->count();
-
-        $incoming = count($req->file('files', [1])); // or if it's single file just 1
-
-        if (($used + $incoming) > $plan->max_uploads_per_month) {
-            return $this->limitResponse('uploads', $used, $plan->max_uploads_per_month, $plan->name);
+        if ($existing && VideoQuota::alreadyCounted($user, (string) $existing)) {
+            return 0;
         }
 
-        return $next($req);
+        return max(1, count($req->file('files', [])));
     }
 
     private function checkBulk($req, $next, $plan): mixed

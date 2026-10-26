@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\Post;
-use App\Models\PostTarget;
+use App\Support\VideoQuota;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -18,17 +18,8 @@ class UserController extends Controller
         $user = $request->user();
         $plan = Cache::remember('plan:'.$user->plan_id, 300, fn () => Plan::find($user->plan_id));
 
-        $postsUsed = PostTarget::whereHas('post', fn ($q) => $q->where('user_id', $user->id))
-            ->whereYear('created_at', now()->year)
-            ->whereMonth('created_at', now()->month)
-            ->whereNotIn('status', ['cancelled'])
-            ->count();
-
-        $uploadsUsed = Post::where('user_id', $user->id)
-            ->whereYear('created_at', now()->year)
-            ->whereMonth('created_at', now()->month)
-            ->whereNotIn('status', ['failed', 'deleted'])
-            ->count();
+        // Same count the plan:videos middleware enforces (1 video = 1 unit).
+        $videosUsed = VideoQuota::used($user);
 
         $storageUsedGb = Post::where('user_id', $user->id)
             ->whereNotIn('status', ['deleted'])
@@ -48,8 +39,7 @@ class UserController extends Controller
                 'display_name' => $plan->display_name,
             ],
             'limits' => [
-                'max_posts_per_month' => $plan->max_posts_per_month,
-                'max_uploads_per_month' => $plan->max_uploads_per_month,
+                'videos_per_month' => $plan->videos_per_month,
                 'max_file_size_mb' => $plan->max_file_size_mb,
                 'bulk_upload_limit' => $plan->bulk_upload_limit,
                 'max_social_accounts' => $plan->max_social_accounts,
@@ -59,8 +49,7 @@ class UserController extends Controller
                 'auto_retry' => (bool) $plan->auto_retry,
             ],
             'usage' => [
-                'posts_this_month' => $postsUsed,
-                'uploads_this_month' => $uploadsUsed,
+                'videos_this_month' => $videosUsed,
                 'storage_used_gb' => round($storageUsedGb, 3),
                 'accounts_connected' => $accountsConnected,
             ],

@@ -36,8 +36,7 @@ class CheckFeature
         } else {
             $limit = $user->getFeatureLimit($feature, 0);
 
-            // -1 means unlimited
-            if ($limit !== -1 && (int) $requiredLimit > $limit) {
+            if ((int) $requiredLimit > $limit) {
                 return response()->json([
                     'message' => 'Upgrade required.',
                     'error' => "Plan limit reached for {$feature}.",
