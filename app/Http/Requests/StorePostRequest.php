@@ -46,6 +46,8 @@ class StorePostRequest extends FormRequest
             'tiktok_options.video_cover_timestamp_ms' => 'nullable|integer|min:0',
             'tiktok_options.photo_cover_index' => 'nullable|integer|min:0',
             'tiktok_options.auto_add_music' => 'nullable|boolean',
+            'instagram_options' => 'nullable|array',
+            'instagram_options.share_to_feed' => 'nullable|boolean',
         ];
     }
 }

@@ -40,6 +40,15 @@ class SocialAuthController extends Controller
             ]);
         }
 
+        if ($platform === 'instagram') {
+            /** @var \App\Services\Platforms\InstagramService $instagram */
+            $instagram = app(\App\Services\Platforms\InstagramService::class);
+
+            return response()->json([
+                'url' => $instagram->getAuthUrl($request->user()),
+            ]);
+        }
+
         // Mock authorization URL generation.
         // E.g., for YouTube: Socialite::driver('youtube')->stateless()->redirect()->getTargetUrl();
         $authUrl = url("/oauth/{$platform}/mock-redirect");
@@ -69,6 +78,39 @@ class SocialAuthController extends Controller
                     $errorType = 'youtube_already_linked';
                 }
                 \Illuminate\Support\Facades\Log::error('YouTube callback exception', [
+                    'message' => $e->getMessage(),
+                ]);
+
+                return redirect("{$frontendUrl}/app/accounts?error={$errorType}");
+            }
+        }
+
+        if ($platform === 'instagram') {
+            if ($request->filled('error')) {
+                \Illuminate\Support\Facades\Log::warning('Instagram auth denied', [
+                    'error' => $request->input('error'),
+                    'reason' => $request->input('error_reason'),
+                ]);
+
+                return redirect("{$frontendUrl}/app/accounts?error=instagram_denied");
+            }
+
+            try {
+                /** @var \App\Services\Platforms\InstagramService $instagram */
+                $instagram = app(\App\Services\Platforms\InstagramService::class);
+                $instagram->handleCallback($request);
+
+                return redirect("{$frontendUrl}/app/accounts?connected=instagram");
+            } catch (\Throwable $e) {
+                $knownErrors = [
+                    'plan_limit_reached',
+                    'instagram_missing_scopes',
+                    'instagram_already_linked',
+                    'instagram_not_professional',
+                ];
+                $errorType = in_array($e->getMessage(), $knownErrors, true) ? $e->getMessage() : 'instagram_failed';
+
+                \Illuminate\Support\Facades\Log::error('Instagram callback exception', [
                     'message' => $e->getMessage(),
                 ]);
 

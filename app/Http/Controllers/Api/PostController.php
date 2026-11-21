@@ -149,6 +149,8 @@ class PostController extends Controller
                     $targetOptions = $validated['youtube_options'];
                 } elseif ($platform === 'tiktok' && $request->has('tiktok_options')) {
                     $targetOptions = $validated['tiktok_options'];
+                } elseif ($platform === 'instagram' && $request->has('instagram_options')) {
+                    $targetOptions = $validated['instagram_options'];
                 }
 
                 $target = $post->targets()->updateOrCreate(
@@ -254,6 +256,8 @@ class PostController extends Controller
                     $targetUpdate['platform_options'] = json_encode($validated['youtube_options']);
                 } elseif ($validated['platform'] === 'tiktok' && $request->has('tiktok_options')) {
                     $targetUpdate['platform_options'] = json_encode($validated['tiktok_options']);
+                } elseif ($validated['platform'] === 'instagram' && $request->has('instagram_options')) {
+                    $targetUpdate['platform_options'] = json_encode($validated['instagram_options']);
                 }
 
                 $post->targets()->where('status', 'pending')->update($targetUpdate);
