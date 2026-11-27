@@ -71,13 +71,7 @@ class UserSettingsController extends Controller
         \Illuminate\Support\Facades\Cache::forget("email_change_attempts_{$user->id}");
 
         try {
-            \Illuminate\Support\Facades\Mail::raw(
-                "رمز التحقق الخاص بك لتغيير البريد الإلكتروني هو: {$code}\n\nتنبيه أمني هام: لا تشارك هذا الرمز مع أي شخص على الإطلاق.",
-                function ($message) use ($newEmail) {
-                    $message->to($newEmail)
-                        ->subject('رمز التحقق لتغيير البريد الإلكتروني');
-                }
-            );
+            \Illuminate\Support\Facades\Mail::to($newEmail)->send(new \App\Mail\VerificationCodeMail($code, 'email_change', 10));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Failed to send email change code: '.$e->getMessage());
         }
@@ -162,13 +156,7 @@ class UserSettingsController extends Controller
 
         // Send email via log mailer/SMTP
         try {
-            \Illuminate\Support\Facades\Mail::raw(
-                "رمز التحقق الخاص بك لتغيير كلمة المرور هو: {$code}\n\nتنبيه أمني هام: لا تشارك هذا الرمز مع أي شخص على الإطلاق.",
-                function ($message) use ($user) {
-                    $message->to($user->email)
-                        ->subject('رمز التحقق لتغيير كلمة المرور');
-                }
-            );
+            \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\VerificationCodeMail($code, 'password_change', 10));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Failed to send password change code email: '.$e->getMessage());
         }
@@ -251,13 +239,7 @@ class UserSettingsController extends Controller
 
         // Send email
         try {
-            \Illuminate\Support\Facades\Mail::raw(
-                "رمز التحقق الخاص بك لحذف الحساب نهائياً هو: {$code}\n\nتنبيه أمني هام: لا تشارك هذا الرمز مع أي شخص على الإطلاق.",
-                function ($message) use ($user) {
-                    $message->to($user->email)
-                        ->subject('رمز التحقق لحذف الحساب');
-                }
-            );
+            \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\VerificationCodeMail($code, 'delete_account', 10));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Failed to send delete account code email: '.$e->getMessage());
         }
