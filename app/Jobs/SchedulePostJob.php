@@ -96,6 +96,13 @@ class SchedulePostJob implements ShouldQueue
 
             $this->updateParentPostStatus($target->post_id);
 
+            // Instagram Reels: Meta processes the container asynchronously; poll it
+            // from a separate queued job instead of blocking this worker.
+            if ($platform === 'instagram' && $finalStatus === 'processing') {
+                CheckInstagramContainerJob::dispatch($target->id)
+                    ->delay(now()->addSeconds((int) config('services.instagram.poll_interval_seconds', 60)));
+            }
+
             Log::info("SchedulePostJob: target {$this->targetId} completed with status '{$finalStatus}'.");
 
         } catch (\Exception $e) {
@@ -241,6 +248,8 @@ class SchedulePostJob implements ShouldQueue
             'unsupported platform',
             'unaudited_client_can_only_post_to_private_accounts',
             'development/unaudited status',
+            'instagram_permission_denied',
+            'instagram cannot fetch media',
         ];
 
         foreach ($permanentPatterns as $pattern) {
@@ -260,6 +269,7 @@ class SchedulePostJob implements ShouldQueue
     {
         return match ($platform) {
             'tiktok' => app(TikTokService::class),
+            'instagram' => app(\App\Services\Platforms\InstagramService::class),
             default => null, // YouTube auth service not yet implemented
         };
     }
@@ -269,6 +279,7 @@ class SchedulePostJob implements ShouldQueue
         return match ($platform) {
             'tiktok' => new TikTokPublishService,
             'youtube' => app(\App\Services\YouTubePublishService::class),
+            'instagram' => app(\App\Services\Platforms\InstagramPublishService::class),
             default => throw new \Exception("Unsupported platform: {$platform}"),
         };
     }
@@ -277,7 +288,11 @@ class SchedulePostJob implements ShouldQueue
     // Helpers
     // -------------------------------------------------------------------------
 
-    private function updateParentPostStatus($postId): void
+    /**
+     * Roll up the parent post status from its targets and send the status email.
+     * Public so asynchronous finalizers (CheckInstagramContainerJob) reuse it.
+     */
+    public static function updateParentPostStatus($postId): void
     {
         $post = \App\Models\Post::with('targets.socialAccount', 'user')->find($postId);
         if (! $post) {

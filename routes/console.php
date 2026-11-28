@@ -12,6 +12,7 @@ Schedule::command('postar:publish-scheduled')->everyMinute();
 Schedule::command('postar:check-processing-posts')->everyFiveMinutes();
 Schedule::command('postar:poll-analytics')->everySixHours();
 Schedule::command(\App\Console\Commands\RefreshTikTokTokens::class)->hourly();
+Schedule::command(\App\Console\Commands\RefreshInstagramTokens::class)->daily();
 
 // Security: Purge expired password reset tokens
 Schedule::command('auth:purge-expired-reset-tokens')->daily();

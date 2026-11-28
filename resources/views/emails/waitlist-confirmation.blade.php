@@ -1,41 +1,17 @@
-<!DOCTYPE html>
-<html lang="en" dir="auto">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirm Your Waitlist Spot</title>
-    <style>
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { color: #2563eb; font-size: 24px; margin: 0; }
-        .content { text-align: center; line-height: 1.6; }
-        .btn { display: inline-block; background-color: #2563eb; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; }
-        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #888; }
-        .bilingual { margin-bottom: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Postar</h1>
-        </div>
-        <div class="content">
-            <div class="bilingual" dir="rtl">
-                <h2>أهلاً بك في قائمة انتظار بوستار!</h2>
-                <p>لقد اقتربت خطوة واحدة من أسهل طريقة لجدولة ونشر محتواك. يرجى تأكيد بريدك الإلكتروني لتأمين مكانك في القائمة والبدء في دعوة أصدقائك للتقدم في الترتيب.</p>
-            </div>
-            
-            <a href="{{ $confirmationUrl }}" class="btn">تأكيد البريد الإلكتروني / Confirm Email</a>
-            
-            <div class="bilingual" dir="ltr">
-                <h2>Welcome to the Postar Waitlist!</h2>
-                <p>You're one step closer to the easiest way to schedule and publish your short-form content. Please confirm your email to secure your spot and start inviting friends to move up the queue.</p>
-            </div>
-        </div>
-        <div class="footer">
-            <p>&copy; {{ date('Y') }} Postar. All rights reserved.</p>
-        </div>
+@extends('emails.layouts.base')
+
+@section('title', 'أكّد بريدك — قائمة انتظار بوستار')
+@section('preheader', 'خطوة واحدة لتأمين مكانك في قائمة انتظار بوستار.')
+
+@section('content')
+    <x-email.heading eyebrow="قائمة الانتظار">أهلاً بك في قائمة انتظار بوستار!</x-email.heading>
+
+    <p style="margin:0;">اقتربت خطوة من أسهل طريقة لجدولة ونشر محتواك. أكّد بريدك الإلكتروني لتأمين مكانك في القائمة، ثم ادعُ أصدقاءك للتقدم في الترتيب.</p>
+
+    <x-email.button :href="$confirmationUrl">تأكيد البريد الإلكتروني</x-email.button>
+
+    <div dir="ltr" style="text-align:left; padding-top:20px; border-top:1px solid #e7e7ea; font-family:Inter, Arial, sans-serif;">
+        <p style="margin:0 0 6px; font-size:15px; font-weight:700; color:#0b0b0f;">Welcome to the Postar waitlist!</p>
+        <p style="margin:0; font-size:14px; line-height:1.7; color:#5b5b63;">You're one step closer to the easiest way to schedule and publish your short-form content. Confirm your email to secure your spot and start inviting friends to move up the queue.</p>
     </div>
-</body>
-</html>
+@endsection

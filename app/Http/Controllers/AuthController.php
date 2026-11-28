@@ -27,13 +27,7 @@ class AuthController extends Controller
         ], now()->addMinutes(15));
 
         try {
-            \Illuminate\Support\Facades\Mail::raw(
-                "رمز التحقق الخاص بك لإنشاء الحساب هو: {$code}\n\nتنبيه أمني هام: لا تشارك هذا الرمز مع أي شخص على الإطلاق.",
-                function ($message) use ($validated) {
-                    $message->to($validated['email'])
-                        ->subject('رمز التحقق لإنشاء حسابك');
-                }
-            );
+            \Illuminate\Support\Facades\Mail::to($validated['email'])->send(new \App\Mail\VerificationCodeMail($code, 'register', 15));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Failed to send registration verification code: '.$e->getMessage());
         }

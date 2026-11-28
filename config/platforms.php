@@ -41,4 +41,15 @@ return [
         'max_media' => 1,
         'max_video' => 1,
     ],
+
+    // Instagram Reels via the Instagram API with Instagram Login.
+    'instagram' => [
+        'label' => 'Instagram',
+        'media_types' => ['video'],
+        'supports_carousel' => false,
+        'allow_mixed' => false,
+        'min_media' => 1,
+        'max_media' => 1,
+        'max_video' => 1,
+    ],
 ];

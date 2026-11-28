@@ -16,6 +16,7 @@ class SocialAccount extends Model
         'user_id',
         'platform',
         'platform_user_id',
+        'platform_scoped_user_id',
         'username',
         'account_name',
         'email',
@@ -27,6 +28,15 @@ class SocialAccount extends Model
         'refresh_expires_at',
         'scopes',
         'is_active',
+    ];
+
+    /**
+     * Never serialize OAuth tokens (e.g. GET /social-accounts, post targets).
+     */
+    protected $hidden = [
+        'access_token',
+        'refresh_token',
+        'page_token',
     ];
 
     protected $casts = [

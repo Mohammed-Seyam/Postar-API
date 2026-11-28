@@ -15,6 +15,13 @@ Route::get('/media/{media}/raw', [\App\Http\Controllers\Api\MediaProxyController
     ->middleware('throttle:120,1')
     ->name('media.raw');
 
+// Instagram (Meta) app callbacks: public, authenticated by Meta's signed_request.
+Route::prefix('instagram')->middleware('throttle:60,1')->group(function () {
+    Route::post('deauthorize', [\App\Http\Controllers\Api\InstagramController::class, 'deauthorize']);
+    Route::post('data-deletion', [\App\Http\Controllers\Api\InstagramController::class, 'dataDeletion']);
+    Route::get('data-deletion', [\App\Http\Controllers\Api\InstagramController::class, 'dataDeletionStatus']);
+});
+
 // Waitlist Routes
 Route::prefix('waitlist')->group(function () {
     Route::post('/', [\App\Http\Controllers\Api\WaitlistController::class, 'store'])->middleware('throttle:5,1');
@@ -44,7 +51,7 @@ Route::prefix('auth')->group(function () {
         Route::get('{platform}/redirect', [\App\Http\Controllers\Api\Auth\SocialAuthController::class, 'redirect']);
     });
 
-    // Callback must be public as TikTok redirects directly to this URL
+    // Callback must be public as TikTok/YouTube/Instagram redirect directly to this URL
     Route::get('{platform}/callback', [\App\Http\Controllers\Api\Auth\SocialAuthController::class, 'callback']);
 });
 

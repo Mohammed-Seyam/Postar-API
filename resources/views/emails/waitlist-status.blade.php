@@ -1,39 +1,21 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>حالة قائمة الانتظار | Waitlist Status</title>
-</head>
-<body style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    
-    <div style="text-align: center; margin-bottom: 30px;">
-        <h2>مرحباً بك في بوستار!</h2>
+@extends('emails.layouts.base')
+
+@section('title', 'حالتك في قائمة انتظار بوستار')
+@section('preheader', 'رابط متابعة مركزك وعدد إحالاتك في قائمة الانتظار.')
+
+@section('content')
+    <x-email.heading eyebrow="قائمة الانتظار">رابط حالتك في القائمة</x-email.heading>
+
+    <p style="margin:0;">طلبت رابط حالة قائمة الانتظار الخاص بك. تابع مركزك وعدد إحالاتك عبر الزر أدناه:</p>
+
+    <x-email.button :href="$statusUrl">تحقق من حالتك الآن</x-email.button>
+
+    <p style="margin:0; font-size:12px; line-height:1.7; color:#5b5b63;">
+        إذا لم يعمل الزر، انسخ هذا الرابط والصقه في متصفحك:<br>
+        <a href="{{ $statusUrl }}" dir="ltr" style="color:#8656b1; word-break:break-all;">{{ $statusUrl }}</a>
+    </p>
+
+    <div dir="ltr" style="text-align:left; margin-top:22px; padding-top:20px; border-top:1px solid #e7e7ea; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#5b5b63;">
+        You requested your waitlist status link. <a href="{{ $statusUrl }}" style="color:#8656b1;">Check your current position</a>.
     </div>
-
-    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; text-align: center;">
-        <p style="font-size: 16px; margin-bottom: 20px;">
-            لقد طلبت رابط حالة قائمة الانتظار الخاص بك. يمكنك متابعة مركزك وعدد إحالاتك عبر الرابط أدناه:
-        </p>
-        
-        <a href="{{ $statusUrl }}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; margin-bottom: 20px;">
-            تحقق من حالتك الان
-        </a>
-        
-        <p style="font-size: 14px; color: #666; margin-top: 10px;">
-            إذا لم يعمل الزر، يمكنك نسخ هذا الرابط ولصقه في متصفحك:<br>
-            <a href="{{ $statusUrl }}" style="color: #2563eb; word-break: break-all;">{{ $statusUrl }}</a>
-        </p>
-    </div>
-
-    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-
-    <div style="text-align: left; direction: ltr;">
-        <p>You requested your Waitlist status link. Click the button below to check your current position:</p>
-        <p>
-            <a href="{{ $statusUrl }}" style="color: #2563eb;">Check Your Status</a>
-        </p>
-    </div>
-
-</body>
-</html>
+@endsection

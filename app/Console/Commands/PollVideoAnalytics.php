@@ -58,7 +58,9 @@ class PollVideoAnalytics extends Command
                 $query->where('analytics_days', '>', 0);
             })
             ->whereHas('socialAccount', function ($query) {
-                $query->where('is_active', true);
+                // Only platforms with an analytics service (Instagram insights not supported yet).
+                $query->where('is_active', true)
+                    ->whereIn('platform', ['tiktok', 'youtube']);
             })
             ->with(['socialAccount', 'post'])
             ->get();

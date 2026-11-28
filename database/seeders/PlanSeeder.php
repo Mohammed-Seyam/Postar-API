@@ -46,7 +46,7 @@ class PlanSeeder extends Seeder
                 // Deprecated: no longer enforced, mirrored for older readers.
                 'max_posts_per_month' => $plan['videos_per_month'],
                 'max_uploads_per_month' => $plan['videos_per_month'],
-                'allowed_platforms' => json_encode(['tiktok', 'youtube']),
+                'allowed_platforms' => json_encode(['tiktok', 'youtube', 'instagram']),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

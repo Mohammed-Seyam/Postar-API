@@ -55,4 +55,17 @@ return [
         'redirect_uri' => env('YOUTUBE_REDIRECT_URI'),
     ],
 
+    // Instagram API with Instagram Login (graph.instagram.com).
+    'instagram' => [
+        'app_id' => env('INSTAGRAM_APP_ID'),
+        'app_secret' => env('INSTAGRAM_APP_SECRET'),
+        'redirect_uri' => env('INSTAGRAM_REDIRECT_URI', 'https://api.postar.blog/api/auth/instagram/callback'),
+        'api_version' => env('INSTAGRAM_API_VERSION', 'v26.0'),
+        'scopes' => env('INSTAGRAM_SCOPES', 'instagram_business_basic,instagram_business_content_publish'),
+        'graph_url' => 'https://graph.instagram.com',
+        // Reels container polling: ~once a minute for up to ~5 minutes.
+        'poll_interval_seconds' => (int) env('INSTAGRAM_POLL_INTERVAL_SECONDS', 60),
+        'poll_max_attempts' => (int) env('INSTAGRAM_POLL_MAX_ATTEMPTS', 6),
+    ],
+
 ];
